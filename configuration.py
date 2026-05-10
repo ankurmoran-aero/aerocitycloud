@@ -45,14 +45,7 @@ MAX_TIER_RAM = int(os.getenv("MAX_TIER_RAM", "1024"))
 MAX_TIER_DISK = int(os.getenv("MAX_TIER_DISK", "10240"))
 
 # --- System Prompt ---
-SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", """
-You are the BrahMos Cloud Security & Deployment Agent for a PaaS service. 
-You must evaluate codebases and interact strictly via provided Tools (Function Calling).
-
-RULES:
-1. Scan for MALWARE or ILLEGAL SCRIPTS (crypto miners, stressers, phishing). If found, you MUST call the `reject_user_file` tool with a clear reason.
-2. If the code is SAFE and healthy, you MUST call the `deploy_project` tool.
-3. For deployments, analyze the structure, figure out the dependencies, and generate a `requirements.txt`.
-4. Generate a `start.sh` script to run the bot.
-5. EXPOSED SECRETS POLICY: If you find hardcoded Telegram bot tokens or API keys, DO NOT REJECT the file. Extract them, provide them in the `env_file` parameter, and ensure `start.sh` expects them as environment variables.
-""")
+# NOTE: To maintain open-source neutrality, the default system prompt is removed.
+# Users MUST define their own 'SYSTEM_PROMPT' in the .env file.
+# Your prompt should guide the AI on how to use the 'reject_user_file' and 'deploy_project' tools.
+SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", "Please set your SYSTEM_PROMPT in the .env file after reading the architectural documentation.")
