@@ -182,6 +182,11 @@ Deploy and manage your lightweight bots or web apps directly from Telegram. Our 
 
 @bot.message_handler(commands=['deploy'])
 def deploy_command_manual(message):
+    try:
+        bot.set_message_reaction(message.chat.id, message.message_id, [types.ReactionTypeEmoji("🚀")])
+    except Exception:
+        pass
+        
     args = message.text.split()
     if len(args) < 2:
         return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/deploy &lt;github_url&gt; [pat_token]</code>\n\n<i>Note: PAT token is only required for private repositories.</i>")
@@ -281,11 +286,20 @@ def list_users_admin(message):
 
 @bot.message_handler(func=lambda message: message.text and "github.com" in message.text)
 def handle_github_url(message):
+    try:
+        bot.set_message_reaction(message.chat.id, message.message_id, [types.ReactionTypeEmoji("🚀")])
+    except Exception:
+        pass
     process_deployment(message, repo_url=message.text.strip())
 
 @bot.message_handler(content_types=['document'])
 def handle_zip(message):
     if message.document.file_name.endswith('.zip'):
+        try:
+            bot.set_message_reaction(message.chat.id, message.message_id, [types.ReactionTypeEmoji("🚀")])
+        except Exception:
+            pass
+            
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
