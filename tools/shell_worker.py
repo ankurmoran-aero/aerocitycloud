@@ -8,6 +8,16 @@ client = docker.from_env()
 def create_dockerfile(directory):
     dockerfile_content = """
 FROM python:3.10-slim
+# Install common system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    git \\
+    curl \\
+    ffmpeg \\
+    gcc \\
+    python3-dev \\
+    build-essential \\
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user
 RUN groupadd -r brahmos && useradd -r -g brahmos brahmos
 WORKDIR /app

@@ -117,7 +117,19 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None):
         
         if dep_success:
             state_manager.add_container(user_id, container_id, codebase_id)
-            bot.edit_message_text(f"✅ <b>Deployment Successful!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n<b>Status:</b> Running 🟢\n\nManage your app in the dashboard.", message.chat.id, status_msg.message_id)
+            
+            # Post-deployment check
+            import time
+            time.sleep(5)
+            try:
+                container = shell_worker.client.containers.get(container_id)
+                if container.status == "running":
+                    bot.edit_message_text(f"✅ <b>Deployment Successful!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n<b>Status:</b> Running 🟢\n\nManage your app in the dashboard.", message.chat.id, status_msg.message_id)
+                else:
+                    logs = container.logs(tail=20).decode("utf-8")
+                    bot.edit_message_text(f"⚠️ <b>Deployment Alert:</b> Container started but is now <code>{container.status}</code>.\n\n<b>Recent Logs:</b>\n<code>{html.escape(logs)}</code>", message.chat.id, status_msg.message_id)
+            except Exception:
+                bot.edit_message_text(f"✅ <b>Deployment Initialized!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n\nCheck status in your dashboard.", message.chat.id, status_msg.message_id)
         else:
             error_handler.send_error_to_user(bot, message.chat.id, "Docker Build Failed", container_id)
             
