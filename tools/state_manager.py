@@ -73,6 +73,19 @@ def get_container_info(container_id):
     db = load_db()
     return db["containers"].get(container_id)
 
+def get_container_by_codebase(user_id, codebase_id):
+    db = load_db()
+    user_id_str = str(user_id)
+    if user_id_str in db["users"]:
+        for cont_id in db["users"][user_id_str]["active_bots"]:
+            if cont_id in db["containers"]:
+                if db["containers"][cont_id]["codebase_id"] == codebase_id:
+                    # Return info plus the actual container_id
+                    info = db["containers"][cont_id]
+                    info["container_id"] = cont_id
+                    return info
+    return None
+
 def remove_container(container_id):
     db = load_db()
     if container_id in db["containers"]:

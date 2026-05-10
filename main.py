@@ -148,7 +148,10 @@ Welcome! To utilize the powerful features of <b>BrahMos Cloud</b>, you must firs
 
 <i>This ensures a secure and dedicated environment for all our users.</i>"""
         if edit and message_id:
-            return bot.edit_message_text(caption, chat_id, message_id, reply_markup=get_join_keyboard())
+            try:
+                return bot.edit_message_caption(caption, chat_id, message_id, reply_markup=get_join_keyboard())
+            except Exception:
+                return bot.edit_message_text(caption, chat_id, message_id, reply_markup=get_join_keyboard())
         return bot.send_message(chat_id, caption, reply_markup=get_join_keyboard())
 
     caption = f"""🚀 <b>BrahMos Cloud PaaS</b>
@@ -313,13 +316,15 @@ def verify_member_callback(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("manage_"))
 def manage_app_callback(call):
-    container_id = call.data.replace("manage_", "")
-    proj = state_manager.get_container_info(container_id)
+    codebase_id = call.data.replace("manage_", "")
+    user_id = call.from_user.id
+    proj = state_manager.get_container_by_codebase(user_id, codebase_id)
     
     if not proj:
         return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
     
-    text = f"""🛠 <b>Manage Project: {proj['codebase_id']}</b>
+    container_id = proj['container_id']
+    text = f"""🛠 <b>Manage Project: {codebase_id}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 <b>Status:</b> {proj['status'].capitalize()} {"🟢" if proj['status'] == 'running' else "🔴"}
 <b>Container ID:</b> <code>{container_id[:12]}</code>
@@ -327,10 +332,10 @@ def manage_app_callback(call):
 Choose an action below to control your application."""
 
     markup = types.InlineKeyboardMarkup()
-    btn_stop = types.InlineKeyboardButton("🛑 Stop", callback_data=f"stop_{container_id}")
-    btn_redeploy = types.InlineKeyboardButton("🔄 Redeploy", callback_data=f"redeploy_{proj['codebase_id']}")
-    btn_delete = types.InlineKeyboardButton("🗑 Delete", callback_data=f"delete_{container_id}")
-    btn_logs = types.InlineKeyboardButton("📋 View Logs", callback_data=f"logs_{container_id}")
+    btn_stop = types.InlineKeyboardButton("🛑 Stop", callback_data=f"stop_{codebase_id}")
+    btn_redeploy = types.InlineKeyboardButton("🔄 Redeploy", callback_data=f"redeploy_{codebase_id}")
+    btn_delete = types.InlineKeyboardButton("🗑 Delete", callback_data=f"delete_{codebase_id}")
+    btn_logs = types.InlineKeyboardButton("📋 View Logs", callback_data=f"logs_{codebase_id}")
     btn_back = types.InlineKeyboardButton("⬅️ Back to My Apps", callback_data="my_apps")
     
     markup.row(btn_stop, btn_redeploy)
@@ -342,10 +347,6 @@ Choose an action below to control your application."""
     except Exception:
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-@bot.message_handler(commands=['myapps', 'apps'])
-def myapps_command(message):
-    my_apps_callback(message)
-
 @bot.message_handler(commands=['stop'])
 def stop_command_manual(message):
     args = message.text.split()
@@ -354,39 +355,35 @@ def stop_command_manual(message):
     
     app_id = args[1]
     user_id = message.from_user.id
-    projects = state_manager.get_user_projects(user_id)
-    
-    target_container = None
-    for proj in projects:
-        if proj['codebase_id'] == app_id:
-            target_container = proj['container_id']
-            break
+    proj = state_manager.get_container_by_codebase(user_id, app_id)
             
-    if not target_container:
+    if not proj:
         return bot.reply_to(message, "❌ Application not found.")
         
-    if shell_worker.stop_container(target_container):
-        state_manager.remove_container(target_container)
+    if shell_worker.stop_container(proj['container_id']):
+        state_manager.remove_container(proj['container_id'])
         bot.reply_to(message, f"✅ Application <code>{app_id}</code> stopped and removed.")
     else:
         bot.reply_to(message, "❌ Failed to stop container.")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_"))
 def delete_app_callback(call):
-    container_id = call.data.replace("delete_", "")
+    codebase_id = call.data.replace("delete_", "")
+    user_id = call.from_user.id
+    proj = state_manager.get_container_by_codebase(user_id, codebase_id)
+    
+    if not proj:
+        return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
+        
     bot.answer_callback_query(call.id, "🗑 Deleting container and files...")
     
-    if shell_worker.stop_container(container_id):
-        proj = state_manager.get_container_info(container_id)
-        if proj:
-            user_id = proj['user_id']
-            code_id = proj['codebase_id']
-            path = os.path.join(shell_worker.STORAGE_BASE, str(user_id), code_id)
-            import shutil
-            if os.path.exists(path):
-                shutil.rmtree(path)
+    if shell_worker.stop_container(proj['container_id']):
+        path = os.path.join(shell_worker.STORAGE_BASE, str(user_id), codebase_id)
+        import shutil
+        if os.path.exists(path):
+            shutil.rmtree(path)
                 
-        state_manager.remove_container(container_id)
+        state_manager.remove_container(proj['container_id'])
         bot.answer_callback_query(call.id, "✅ Application deleted successfully.", show_alert=True)
         my_apps_callback(call)
     else:
@@ -394,11 +391,17 @@ def delete_app_callback(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("stop_"))
 def stop_app_callback(call):
-    container_id = call.data.replace("stop_", "")
+    codebase_id = call.data.replace("stop_", "")
+    user_id = call.from_user.id
+    proj = state_manager.get_container_by_codebase(user_id, codebase_id)
+    
+    if not proj:
+        return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
+        
     bot.answer_callback_query(call.id, "⌛ Stopping container...")
     
-    if shell_worker.stop_container(container_id):
-        state_manager.remove_container(container_id)
+    if shell_worker.stop_container(proj['container_id']):
+        state_manager.remove_container(proj['container_id'])
         bot.answer_callback_query(call.id, "✅ Application stopped.", show_alert=True)
         my_apps_callback(call)
     else:
@@ -470,7 +473,7 @@ Select a project to manage its status or deploy a new application.\n\n"""
             code_id = proj['codebase_id']
             dir_id = proj['container_id'][:12]
             text += f"• {status_emoji} <b>Project:</b> <code>{code_id}</code> | <b>Dir ID:</b> <code>{dir_id}</code>\n"
-            proj_buttons.append(types.InlineKeyboardButton(f"⚙️ {code_id}", callback_data=f"manage_{proj['container_id']}"))
+            proj_buttons.append(types.InlineKeyboardButton(f"⚙️ {code_id}", callback_data=f"manage_{code_id}"))
         
         # Grid layout: 2 buttons per row
         for i in range(0, len(proj_buttons), 2):
@@ -555,7 +558,7 @@ Upload a <code>.zip</code> file containing your project's source code.
 <i>Our AI will automatically scan your files, create a <code>start.sh</code>, and deploy your container in seconds.</i>"""
     
     markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton("⬅️ Back", callback_data="account_info"))
+    markup.row(types.InlineKeyboardButton("⬅️ Back", callback_data="back_start"))
     
     try:
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
@@ -564,18 +567,24 @@ Upload a <code>.zip</code> file containing your project's source code.
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("logs_"))
 def view_logs_callback(call):
-    container_id = call.data.replace("logs_", "")
+    codebase_id = call.data.replace("logs_", "")
+    user_id = call.from_user.id
+    proj = state_manager.get_container_by_codebase(user_id, codebase_id)
+    
+    if not proj:
+        return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
+        
     bot.answer_callback_query(call.id, "⌛ Fetching logs...")
     
     try:
         client = shell_worker.client
-        container = client.containers.get(container_id)
+        container = client.containers.get(proj['container_id'])
         logs = container.logs(tail=20).decode("utf-8")
         
         if not logs:
             logs = "No recent logs found."
             
-        text = f"📋 <b>Recent Logs:</b>\n<code>\n{logs}\n</code>"
+        text = f"📋 <b>Recent Logs ({codebase_id}):</b>\n<code>\n{logs}\n</code>"
         bot.send_message(call.message.chat.id, text)
     except Exception as e:
         bot.answer_callback_query(call.id, f"❌ Error: {str(e)}", show_alert=True)
