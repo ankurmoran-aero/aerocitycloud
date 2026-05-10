@@ -162,12 +162,10 @@ Welcome, <a href="tg://user?id={user_id}">{first_name}</a>! 👋
 
 Deploy and manage your lightweight bots or web apps directly from Telegram. Our AI-driven security layer ensures your code is safe and optimized for hosting.
 
-⚡ <b>Core Capabilities:</b>
-• <b>AI Analysis:</b> Instant malware detection.
-• <b>Auto-Deploy:</b> Zero-friction CI/CD.
-• <b>Monitoring:</b> Real-time resource tracking.
+⚡ <b>System Status:</b> <code>Functional 🟢</code>
+🛡 <b>Security:</b> <code>Active 🛡</code>
 
-🛡 <i><b>Disclaimer:</b> This platform is strictly for legitimate hosting. Any malicious activities will result in an immediate ban.</i>"""
+⚠️ <b>Notice:</b> <i>Users are responsible for their own backups. We are not responsible for any data loss.</i>"""
     
     if edit and message_id:
         try:
@@ -533,6 +531,15 @@ def help_menu_callback(call):
     except Exception:
         bot.edit_message_text(help_text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
+    # Advertising / Cross-promotion (Post-edit follow up)
+    promotion_text = """🤖 <b>Discover Our Ecosystem:</b>
+• <a href="https://t.me/gitpushbot">@GitPushBot</a> - AI-Powered Git Management.
+• <a href="https://t.me/osintbot">@OsintBot</a> - Advanced Intelligence Tools."""
+    try:
+        bot.send_message(call.message.chat.id, promotion_text, disable_web_page_preview=True)
+    except Exception:
+        pass
+
 @bot.message_handler(commands=['myapps', 'apps'])
 def myapps_command(message):
     my_apps_callback(message)
@@ -629,11 +636,13 @@ def account_info_callback(call):
 <b>User ID:</b> <code>{user_id}</code>
 <b>Current Tier:</b> {tier}{expiry_text}
 
-<b>Limits:</b>
-• RAM: {ram_limit}
-• Disk: {disk_limit}
+⚡ <b>Limits:</b>
+• <b>RAM:</b> <code>{ram_limit}</code>
+• <b>Disk:</b> <code>{disk_limit}</code>
 
-<b>Active Projects:</b> {active_bots}
+📂 <b>Active Projects:</b> <code>{active_bots}</code>
+
+⚠️ <b>Backup Policy:</b> <i>Always keep a local copy of your code. We are not liable for data loss during maintenance or system errors.</i>
 
 <i>{"Full administrative access granted." if is_admin else "Need more power? Contact the developer for a Pro upgrade."}</i>"""
     
