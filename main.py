@@ -199,7 +199,7 @@ def add_premium_admin(message):
     
     args = message.text.split()
     if len(args) < 3:
-        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/addpremium <user_id> <days></code>")
+        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/addpremium &lt;user_id&gt; &lt;days&gt;</code>")
     
     target_id = args[1]
     try:
@@ -223,7 +223,7 @@ def rem_premium_admin(message):
     
     args = message.text.split()
     if len(args) < 2:
-        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/rempremium <user_id></code>")
+        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/rempremium &lt;user_id&gt;</code>")
     
     target_id = args[1]
     if state_manager.update_user_premium(target_id, 0):
