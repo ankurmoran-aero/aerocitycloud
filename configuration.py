@@ -40,6 +40,10 @@ FREE_TIER_DISK = int(os.getenv("FREE_TIER_DISK", "1024"))
 PRO_TIER_RAM = int(os.getenv("PRO_TIER_RAM", "512"))
 PRO_TIER_DISK = int(os.getenv("PRO_TIER_DISK", "5120"))
 
+# --- Resource Limits (MAX Tier) ---
+MAX_TIER_RAM = int(os.getenv("MAX_TIER_RAM", "1024"))
+MAX_TIER_DISK = int(os.getenv("MAX_TIER_DISK", "10240"))
+
 # --- System Prompt ---
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", """
 You are the BrahMos Cloud Security & Deployment Agent for a PaaS service. 

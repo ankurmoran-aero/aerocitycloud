@@ -11,6 +11,11 @@ TIERS = {
         "ram": config.PRO_TIER_RAM,
         "disk": config.PRO_TIER_DISK,
         "max_bots": 10
+    },
+    "max": {
+        "ram": config.MAX_TIER_RAM,
+        "disk": config.MAX_TIER_DISK,
+        "max_bots": 25
     }
 }
 

@@ -42,7 +42,7 @@ def get_user(user_id):
         
     return user
 
-def update_user_premium(user_id, days):
+def update_user_premium(user_id, days, tier="pro"):
     db = load_db()
     user_id_str = str(user_id)
     if user_id_str not in db["users"]:
@@ -51,7 +51,7 @@ def update_user_premium(user_id, days):
         
     if days > 0:
         expiry_date = datetime.now() + timedelta(days=days)
-        db["users"][user_id_str]["tier"] = "pro"
+        db["users"][user_id_str]["tier"] = tier.lower()
         db["users"][user_id_str]["premium_expiry"] = expiry_date.strftime("%Y-%m-%d %H:%M:%S")
     else:
         db["users"][user_id_str]["tier"] = "free"

@@ -199,7 +199,7 @@ def add_premium_admin(message):
     
     args = message.text.split()
     if len(args) < 3:
-        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/addpremium &lt;user_id&gt; &lt;days&gt;</code>")
+        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/addpremium &lt;user_id&gt; &lt;days&gt; [tier: pro/max]</code>")
     
     target_id = args[1]
     try:
@@ -207,10 +207,14 @@ def add_premium_admin(message):
     except ValueError:
         return bot.reply_to(message, "❌ Invalid days provided.")
         
-    if state_manager.update_user_premium(target_id, days):
-        bot.reply_to(message, f"✅ User <code>{target_id}</code> now has <b>PRO</b> access for {days} days.")
+    tier = args[3].lower() if len(args) > 3 else "pro"
+    if tier not in ["pro", "max"]:
+        return bot.reply_to(message, "❌ Invalid tier. Use 'pro' or 'max'.")
+
+    if state_manager.update_user_premium(target_id, days, tier=tier):
+        bot.reply_to(message, f"✅ User <code>{target_id}</code> now has <b>{tier.upper()}</b> access for {days} days.")
         try:
-            bot.send_message(target_id, f"💎 <b>Premium Activated!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYou have been granted <b>PRO</b> access for {days} days. Your limits are now expanded! 🚀")
+            bot.send_message(target_id, f"💎 <b>{tier.upper()} Tier Activated!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYou have been granted <b>{tier.upper()}</b> access for {days} days. Your limits are now expanded! 🚀")
         except Exception:
             pass
     else:
@@ -331,7 +335,7 @@ def admin_help_command(message):
 Master your VPS infrastructure with these commands:
 
 <b>👤 User Management</b>
-• <code>/addpremium &lt;user_id&gt; &lt;days&gt;</code> - Grant PRO access.
+• <code>/addpremium &lt;user_id&gt; &lt;days&gt; [pro/max]</code> - Grant access.
 • <code>/rempremium &lt;user_id&gt;</code> - Revoke PRO access.
 • <code>/listusers</code> - Audit all users and their files.
 
@@ -615,7 +619,7 @@ def account_info_callback(call):
     disk_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state)['disk']}MB"
     
     expiry_text = ""
-    if not is_admin and user_state.get("tier") == "pro":
+    if not is_admin and user_state.get("tier") in ["pro", "max"]:
         expiry = user_state.get("premium_expiry")
         if expiry:
             expiry_text = f"\n📅 <b>Expiry:</b> <code>{expiry}</code>"
@@ -660,7 +664,7 @@ def view_plans_callback(call):
 
     text = f"""💎 <b>BrahMos Cloud Premium</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-Upgrade your hosting experience with our powerful <b>PRO</b> tier.
+Upgrade your hosting experience with our powerful <b>PRO</b> & <b>MAX</b> tiers.
 
 🆓 <b>FREE TIER:</b>
 • <b>RAM:</b> {config.FREE_TIER_RAM}MB
@@ -672,7 +676,13 @@ Upgrade your hosting experience with our powerful <b>PRO</b> tier.
 • <b>RAM:</b> {config.PRO_TIER_RAM}MB
 • <b>Disk:</b> {config.PRO_TIER_DISK}MB
 • <b>Max Projects:</b> 10
-• <b>Price:</b> ₹200
+• <b>Price:</b> ₹199
+
+⚡ <b>MAX TIER:</b>
+• <b>RAM:</b> {config.MAX_TIER_RAM}MB
+• <b>Disk:</b> {config.MAX_TIER_DISK}MB
+• <b>Max Projects:</b> 25
+• <b>Price:</b> ₹499
 
 <i>To upgrade, please contact the <a href="{config.DEV_LINK}">Developer</a> with your User ID.</i>"""
     
