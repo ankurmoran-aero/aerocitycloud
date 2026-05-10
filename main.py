@@ -437,6 +437,10 @@ def help_menu_callback(call):
 def myapps_command(message):
     my_apps_callback(message)
 
+@bot.message_handler(commands=['myplan', 'plan'])
+def myplan_command(message):
+    account_info_callback(message)
+
 @bot.callback_query_handler(func=lambda call: call.data == "my_apps")
 def my_apps_callback(call):
     # Handle both message and callback objects
@@ -490,8 +494,15 @@ Select a project to manage its status or deploy a new application.\n\n"""
 
 @bot.callback_query_handler(func=lambda call: call.data == "account_info")
 def account_info_callback(call):
-    bot.answer_callback_query(call.id)
+    # Handle both message and callback objects
+    is_callback = hasattr(call, 'message')
     user_id = call.from_user.id
+    chat_id = call.message.chat.id if is_callback else call.chat.id
+    message_id = call.message.message_id if is_callback else None
+
+    if is_callback:
+        bot.answer_callback_query(call.id)
+
     user_state = state_manager.get_user(user_id)
     projects = state_manager.get_user_projects(user_id)
     
@@ -518,9 +529,15 @@ def account_info_callback(call):
     markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
     
     try:
-        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
-    except Exception:
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+        if is_callback:
+            try:
+                bot.edit_message_caption(text, chat_id, message_id, reply_markup=markup)
+            except Exception:
+                bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+        else:
+            bot.send_message(chat_id, text, reply_markup=markup)
+    except Exception as e:
+        print(f"Error in account info view: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "deploy_menu")
 def deploy_menu_callback(call):
