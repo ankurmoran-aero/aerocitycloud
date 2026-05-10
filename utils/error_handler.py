@@ -1,12 +1,13 @@
 import telebot
+import html
 
 def format_error_log(error_msg, log_content=None):
     formatted = f"❌ <b>Deployment Error</b>\n━━━━━━━━━━━━━━━━━━━━━━\n"
-    formatted += f"<b>Message:</b> <code>{error_msg}</code>\n\n"
+    formatted += f"<b>Message:</b> <code>{html.escape(str(error_msg))}</code>\n\n"
     
     if log_content:
         formatted += "<b>Raw Logs:</b>\n"
-        formatted += f"<code>\n{log_content}\n</code>"
+        formatted += f"<code>\n{html.escape(str(log_content))}\n</code>"
     
     return formatted
 

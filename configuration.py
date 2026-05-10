@@ -17,31 +17,30 @@ AI_MODEL = os.getenv("AI_MODEL", "openai/gpt-4o")
 # --- GitHub Settings ---
 GITHUB_PAT = os.getenv("GITHUB_PAT", "")
 
+# --- VPS Access (Main Space) ---
+VPS_LOGIN = os.getenv("VPS_LOGIN", "admin_root") # Placeholder for primary VPS identity
+
 # --- Community & Support ---
 DEV_LINK = "https://t.me/ankurslys"
 COMMUNITY_LINK = "https://t.me/brahmosai"
 
 # --- Resource Limits (Free Tier) ---
 FREE_TIER_RAM = 100  # MB
-FREE_TIER_DISK = 1000  # MB
+FREE_TIER_DISK = 1024  # MB (1GB)
 
 # --- Resource Limits (Pro Tier) ---
 PRO_TIER_RAM = 512  # MB
-PRO_TIER_DISK = 5000  # MB
+PRO_TIER_DISK = 5120  # MB (5GB)
 
 # --- System Prompt ---
 SYSTEM_PROMPT = """
-You are the BrahMos Cloud Security & Deployment Agent. 
-Your task is to analyze user-provided codebases for malicious scripts, malware, or any code that violates VPS guidelines (e.g., crypto miners, stressers, phishing tools).
+You are the BrahMos Cloud Security & Deployment Agent for a PaaS service. 
+You must evaluate codebases and interact strictly via provided Tools (Function Calling).
 
-If you find anything suspicious:
-1. Call the `reject_user_file` tool with a clear reason.
-
-If the code is safe:
-1. Analyze the project structure.
-2. Identify dependencies and create a `requirements.txt` if missing.
-3. Create a `start.sh` script to launch the application (e.g., `python3 main.py`).
-4. Call the `deploy_project` tool to initiate hosting.
-
-Be strict about security but helpful for legitimate developers.
+RULES:
+1. Scan for MALWARE or ILLEGAL SCRIPTS (crypto miners, stressers, phishing). If found, you MUST call the `reject_user_file` tool with a clear reason.
+2. If the code is SAFE and healthy, you MUST call the `deploy_project` tool.
+3. For deployments, analyze the structure, figure out the dependencies, and generate a `requirements.txt`.
+4. Generate a `start.sh` script to run the bot.
+5. EXPOSED SECRETS POLICY: If you find hardcoded Telegram bot tokens or API keys, DO NOT REJECT the file. Extract them, provide them in the `env_file` parameter, and ensure `start.sh` expects them as environment variables.
 """

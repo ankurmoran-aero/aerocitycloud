@@ -16,6 +16,10 @@ def save_db(data):
     with open(DB_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+def get_all_users():
+    db = load_db()
+    return db["users"]
+
 def get_user(user_id):
     db = load_db()
     user_id_str = str(user_id)
@@ -53,14 +57,18 @@ def add_container(user_id, container_id, codebase_id):
     }
     save_db(db)
 
-def remove_container(container_id):
+def get_user_projects(user_id):
     db = load_db()
-    if container_id in db["containers"]:
-        user_id = str(db["containers"][container_id]["user_id"])
-        if user_id in db["users"]:
-            if container_id in db["users"][user_id]["active_bots"]:
-                db["users"][user_id]["active_bots"].remove(container_id)
-        del db["containers"][container_id]
-        save_db(db)
-        return True
-    return False
+    user_id_str = str(user_id)
+    projects = []
+    if user_id_str in db["users"]:
+        for cont_id in db["users"][user_id_str]["active_bots"]:
+            if cont_id in db["containers"]:
+                proj = db["containers"][cont_id]
+                proj["container_id"] = cont_id
+                projects.append(proj)
+    return projects
+
+def get_container_info(container_id):
+    db = load_db()
+    return db["containers"].get(container_id)

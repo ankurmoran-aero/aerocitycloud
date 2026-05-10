@@ -5,6 +5,7 @@ import os
 import threading
 import uuid
 import requests
+import html
 
 from tools import state_manager, file_manager, ai_agent, shell_worker, resource_watchdog, webhook_listener, garbage_collector
 from utils import subscription_manager, error_handler
@@ -14,27 +15,24 @@ bot = telebot.TeleBot(config.BOT_TOKEN, parse_mode='HTML')
 
 # --- UI Helpers ---
 
-def get_start_keyboard():
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    btn_deploy = types.InlineKeyboardButton("🚀 Deploy App", callback_query_data="deploy_menu")
-    btn_stats = types.InlineKeyboardButton("📊 My Dashboard", callback_query_data="view_stats")
-    btn_help = types.InlineKeyboardButton("📖 Guide", callback_query_data="help_menu")
-    btn_account = types.InlineKeyboardButton("👤 Account", callback_query_data="account_info")
-    btn_dev = types.InlineKeyboardButton("👨‍💻 Developer", url=config.DEV_LINK)
-    btn_community = types.InlineKeyboardButton("🌐 Community", url=config.COMMUNITY_LINK)
-    
-    markup.add(btn_deploy)
-    markup.add(btn_stats, btn_help)
-    markup.add(btn_account)
-    markup.add(btn_dev, btn_community)
+def escape_html(text):
+    return html.escape(str(text))
+
+def get_start_keyboard(user_id=None):
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("🚀 Deploy App", callback_data="deploy_menu"))
+    markup.row(types.InlineKeyboardButton("👤 My Account", callback_data="account_info"),
+               types.InlineKeyboardButton("📖 Guide", callback_data="help_menu"))
+    markup.row(types.InlineKeyboardButton("👨‍💻 Developer", url=config.DEV_LINK),
+               types.InlineKeyboardButton("🌐 Community", url=config.COMMUNITY_LINK))
     return markup
 
 def get_join_keyboard():
     markup = types.InlineKeyboardMarkup()
     btn_join = types.InlineKeyboardButton("📢 Join Official Channel", url=f"https://t.me/{config.CHANNEL_USERNAME[1:]}")
-    btn_verify = types.InlineKeyboardButton("🔄 Verify Membership", callback_query_data="verify_member")
-    markup.add(btn_join)
-    markup.add(btn_verify)
+    btn_verify = types.InlineKeyboardButton("🔄 Verify Membership", callback_data="verify_member")
+    markup.row(btn_join)
+    markup.row(btn_verify)
     return markup
 
 def check_membership(user_id):
@@ -44,8 +42,8 @@ def check_membership(user_id):
         member = bot.get_chat_member(config.CHANNEL_USERNAME, user_id)
         if member.status in ['member', 'administrator', 'creator']:
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Membership check failed for {user_id}: {e}")
     return False
 
 # --- Deployment Logic ---
@@ -53,9 +51,10 @@ def check_membership(user_id):
 def process_deployment(message, repo_url=None, zip_path=None):
     user_id = message.from_user.id
     user_state = state_manager.get_user(user_id)
+    is_admin = (user_id == config.ADMIN_ID)
     
     # 1. Check Subscription
-    can_go, reason = subscription_manager.can_deploy(user_state)
+    can_go, reason = subscription_manager.can_deploy(user_state, is_admin=is_admin)
     if not can_go:
         return bot.reply_to(message, f"❌ <b>Deployment Blocked</b>\n{reason}")
     
@@ -93,6 +92,11 @@ def process_deployment(message, repo_url=None, zip_path=None):
         with open(os.path.join(temp_dir, 'start.sh'), 'w') as f:
             f.write(analysis.get("start_sh", ""))
             
+        env_content = analysis.get("env_file", "")
+        if env_content:
+            with open(os.path.join(temp_dir, '.env'), 'w') as f:
+                f.write(env_content)
+            
         # 5. Docker Deployment
         codebase_id = str(uuid.uuid4())[:8]
         bot.edit_message_text("🐳 <b>Building Docker container...</b>", message.chat.id, status_msg.message_id)
@@ -112,9 +116,15 @@ def process_deployment(message, repo_url=None, zip_path=None):
 # --- Command Handlers ---
 
 @bot.message_handler(commands=['start'])
-def start_command(message):
-    user_id = message.from_user.id
-    first_name = message.from_user.first_name
+def start_command(message, edit=False):
+    # Support both Message and CallbackQuery objects
+    is_callback = hasattr(message, 'message')
+    target_user = message.from_user
+    chat_id = message.message.chat.id if is_callback else message.chat.id
+    message_id = message.message.message_id if is_callback else None
+
+    first_name = escape_html(target_user.first_name)
+    user_id = target_user.id
     
     if not check_membership(user_id):
         caption = f"""<b>🛑 Access Restricted</b>
@@ -126,7 +136,9 @@ Welcome! To utilize the powerful features of <b>BrahMos Cloud</b>, you must firs
 2️⃣ Click the verify button below.
 
 <i>This ensures a secure and dedicated environment for all our users.</i>"""
-        return bot.send_message(message.chat.id, caption, reply_markup=get_join_keyboard())
+        if edit and message_id:
+            return bot.edit_message_text(caption, chat_id, message_id, reply_markup=get_join_keyboard())
+        return bot.send_message(chat_id, caption, reply_markup=get_join_keyboard())
 
     caption = f"""🚀 <b>BrahMos Cloud PaaS</b>
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -141,12 +153,18 @@ Deploy and manage your lightweight bots or web apps directly from Telegram. Our 
 
 🛡 <i><b>Disclaimer:</b> This platform is strictly for legitimate hosting. Any malicious activities will result in an immediate ban.</i>"""
     
+    if edit and message_id:
+        try:
+            return bot.edit_message_caption(caption, chat_id, message_id, reply_markup=get_start_keyboard(user_id))
+        except Exception:
+            return bot.edit_message_text(caption, chat_id, message_id, reply_markup=get_start_keyboard(user_id))
+
     banner_path = os.path.join(os.path.dirname(__file__), 'banner.jpg')
     if os.path.exists(banner_path):
         with open(banner_path, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption=caption, reply_markup=get_start_keyboard())
+            bot.send_photo(chat_id, photo, caption=caption, reply_markup=get_start_keyboard(user_id))
     else:
-        bot.send_message(message.chat.id, caption, reply_markup=get_start_keyboard())
+        bot.send_message(chat_id, caption, reply_markup=get_start_keyboard(user_id))
 
 @bot.message_handler(commands=['givepremium'])
 def give_premium(message):
@@ -162,6 +180,48 @@ def give_premium(message):
         bot.reply_to(message, f"✅ User <code>{target_id}</code> has been elevated to <b>PRO</b> tier.")
     else:
         bot.reply_to(message, "❌ User not found in database.")
+
+@bot.message_handler(commands=['listusers'])
+def list_users_admin(message):
+    # Check ID from from_user (for command) or from call (for callback)
+    user_id = message.from_user.id if message.from_user else None
+    if user_id != config.ADMIN_ID and not hasattr(message, 'admin_authorized'):
+        return
+
+    users = state_manager.get_all_users()
+    if not users:
+        return bot.reply_to(message, "📂 <b>No users found in database.</b>")
+
+    text = "👑 <b>Admin: User & File Audit</b>\n━━━━━━━━━━━━━━━━━━━━━━\n"
+    
+    for user_id, data in users.items():
+        text += f"👤 <b>User:</b> <code>{user_id}</code> ({data['tier'].upper()})\n"
+        projects = state_manager.get_user_projects(user_id)
+        
+        if not projects:
+            text += "⤷ <i>No active projects.</i>\n"
+        else:
+            for proj in projects:
+                code_id = proj['codebase_id']
+                path = os.path.join(shell_worker.STORAGE_BASE, str(user_id), code_id)
+                
+                # List files in the project directory
+                try:
+                    files = os.listdir(path)
+                    file_list = ", ".join(files[:5]) + ("..." if len(files) > 5 else "")
+                except Exception:
+                    file_list = "Directory Error"
+
+                text += f"⤷ 📂 <code>{code_id}</code>\n  └ 📍 <code>{path}</code>\n  └ 📄 {file_list}\n"
+        
+        text += "──────────────────\n"
+
+    # Handle long messages by splitting
+    if len(text) > 4000:
+        for x in range(0, len(text), 4000):
+            bot.send_message(message.chat.id, text[x:x+4000])
+    else:
+        bot.reply_to(message, text)
 
 @bot.message_handler(func=lambda message: message.text and "github.com" in message.text)
 def handle_github_url(message):
@@ -182,40 +242,230 @@ def handle_zip(message):
 
 # --- Callbacks ---
 
+@bot.message_handler(commands=['stats'])
+def stats_command_admin(message):
+    user_id = message.from_user.id if message.from_user else None
+    if user_id != config.ADMIN_ID and not hasattr(message, 'admin_authorized'):
+        return
+    
+    users = state_manager.get_all_users()
+    total_users = len(users)
+    pro_users = sum(1 for u in users.values() if u['tier'] == 'pro')
+    
+    import docker
+    client = docker.from_env()
+    containers = client.containers.list()
+    active_containers = len([c for c in containers if c.name.startswith("brahmos_cont_")])
+    
+    text = f"""📊 <b>Global System Stats</b>
+━━━━━━━━━━━━━━━━━━━━━━
+👤 <b>Total Users:</b> {total_users}
+💎 <b>Pro Users:</b> {pro_users}
+🐳 <b>Active Containers:</b> {active_containers}
+⚙️ <b>Server Identity:</b> <code>{config.VPS_LOGIN}</code>
+
+<i>Monitoring system performance...</i>"""
+    bot.reply_to(message, text)
+
+@bot.message_handler(commands=['addcmd', 'admin'])
+def addcmd_admin(message):
+    if message.from_user.id != config.ADMIN_ID:
+        return
+    
+    text = "👑 <b>Administrative Control Panel</b>\n━━━━━━━━━━━━━━━━━━━━━━\nSelect an audit or management tool below:"
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("📋 List All Users", callback_data="admin_list_users"),
+               types.InlineKeyboardButton("📊 System Stats", callback_data="admin_view_stats"))
+    
+    bot.send_message(message.chat.id, text, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_list_users")
+def admin_list_users_callback(call):
+    bot.answer_callback_query(call.id)
+    call.message.admin_authorized = True
+    list_users_admin(call.message)
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_view_stats")
+def admin_view_stats_callback(call):
+    bot.answer_callback_query(call.id)
+    call.message.admin_authorized = True
+    stats_command_admin(call.message)
+
 @bot.callback_query_handler(func=lambda call: call.data == "verify_member")
 def verify_member_callback(call):
     if check_membership(call.from_user.id):
         bot.answer_callback_query(call.id, "✅ Access Granted!")
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        start_command(call)
+        start_command(call, edit=True)
     else:
         bot.answer_callback_query(call.id, "❌ Verification Failed!", show_alert=True)
 
-@bot.callback_query_handler(func=lambda call: call.data == "view_stats")
-def view_stats_callback(call):
-    user_state = state_manager.get_user(call.from_user.id)
-    active_count = len(user_state.get("active_bots", []))
-    tier = user_state.get("tier", "free").upper()
+@bot.callback_query_handler(func=lambda call: call.data.startswith("manage_"))
+def manage_app_callback(call):
+    container_id = call.data.replace("manage_", "")
+    proj = state_manager.get_container_info(container_id)
     
-    text = f"""📊 <b>BrahMos Cloud Dashboard</b>
+    if not proj:
+        return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
+    
+    text = f"""🛠 <b>Manage Project: {proj['codebase_id']}</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-<b>User ID:</b> <code>{call.from_user.id}</code>
-<b>Current Tier:</b> {tier}
+<b>Status:</b> {proj['status'].capitalize()}
+<b>Container ID:</b> <code>{container_id[:12]}</code>
 
-<b>Active Apps:</b> {active_count}
-<b>RAM Limit:</b> {subscription_manager.get_limits(user_state.get("tier"))['ram']}MB
-<b>Disk Limit:</b> {subscription_manager.get_limits(user_state.get("tier"))['disk']}MB
+Choose an action below to control your application."""
 
-<i>Select an app to manage it (coming soon).</i>"""
-    
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("⬅️ Back", callback_query_data="back_start"))
-    bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    btn_stop = types.InlineKeyboardButton("🛑 Stop", callback_data=f"stop_{container_id}")
+    btn_redeploy = types.InlineKeyboardButton("🔄 Redeploy", callback_data=f"redeploy_{proj['codebase_id']}")
+    btn_logs = types.InlineKeyboardButton("📋 View Logs", callback_data=f"logs_{container_id}")
+    btn_back = types.InlineKeyboardButton("⬅️ Back to Dashboard", callback_data="view_stats")
+    
+    markup.row(btn_stop, btn_redeploy)
+    markup.row(btn_logs)
+    markup.row(btn_back)
+    
+    try:
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    except Exception:
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("stop_"))
+def stop_app_callback(call):
+    container_id = call.data.replace("stop_", "")
+    bot.answer_callback_query(call.id, "⌛ Stopping container...")
+    
+    if shell_worker.stop_container(container_id):
+        state_manager.remove_container(container_id)
+        bot.answer_callback_query(call.id, "✅ Application stopped.", show_alert=True)
+        view_stats_callback(call)
+    else:
+        bot.answer_callback_query(call.id, "❌ Failed to stop container.", show_alert=True)
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_start")
 def back_start_callback(call):
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    start_command(call)
+    bot.answer_callback_query(call.id)
+    start_command(call, edit=True)
+
+@bot.callback_query_handler(func=lambda call: call.data == "help_menu")
+def help_menu_callback(call):
+    bot.answer_callback_query(call.id)
+    help_text = """📖 <b>BrahMos Intelligence Manual</b>
+━━━━━━━━━━━━━━━━━━━━━━
+<b>How to Deploy (Automatic CI/CD):</b>
+1️⃣ <b>GitHub Repo:</b> Send your public URL (e.g., <code>https://github.com/user/repo</code>).
+2️⃣ <b>ZIP Archive:</b> Upload a <code>.zip</code> file with your code.
+<i>The AI will scan for security, auto-generate setup files, and deploy instantly.</i>
+
+<b>User Commands:</b>
+• <code>/myplan</code> - Check current tier & limits.
+• <code>/stop [app_id]</code> - Kill an active container.
+
+<i>Need help? Contact Developer or join the Community.</i>"""
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
+    
+    try:
+        bot.edit_message_caption(help_text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    except Exception:
+        bot.edit_message_text(help_text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "account_info")
+def account_info_callback(call):
+    bot.answer_callback_query(call.id)
+    user_id = call.from_user.id
+    user_state = state_manager.get_user(user_id)
+    projects = state_manager.get_user_projects(user_id)
+    
+    is_admin = (user_id == config.ADMIN_ID)
+    tier = "👑 ADMIN" if is_admin else user_state.get("tier", "free").upper()
+    active_bots = len(projects)
+    ram_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state.get('tier'))['ram']}MB"
+    disk_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state.get('tier'))['disk']}MB"
+    
+    text = f"""👤 <b>Account Overview</b>
+━━━━━━━━━━━━━━━━━━━━━━
+<b>User ID:</b> <code>{user_id}</code>
+<b>Current Tier:</b> {tier}
+
+<b>Limits:</b>
+• RAM: {ram_limit}
+• Disk: {disk_limit}
+
+<b>Active Projects ({active_bots}):</b>\n"""
+    
+    markup = types.InlineKeyboardMarkup()
+    
+    if not projects:
+        text += "<i>No active deployments found.</i>"
+    else:
+        proj_buttons = []
+        for proj in projects:
+            status_emoji = "🟢" if proj['status'] == 'running' else "🔴"
+            code_id = proj['codebase_id']
+            dir_id = proj['container_id'][:12]
+            text += f"• {status_emoji} <b>Project:</b> <code>{code_id}</code> | <b>Dir ID:</b> <code>{dir_id}</code>\n"
+            proj_buttons.append(types.InlineKeyboardButton(f"⚙️ {code_id}", callback_data=f"manage_{proj['container_id']}"))
+        
+        # Grid layout: 2 buttons per row
+        for i in range(0, len(proj_buttons), 2):
+            if i + 1 < len(proj_buttons):
+                markup.row(proj_buttons[i], proj_buttons[i+1])
+            else:
+                markup.row(proj_buttons[i])
+                
+    markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
+    
+    try:
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    except Exception:
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "deploy_menu")
+def deploy_menu_callback(call):
+    bot.answer_callback_query(call.id)
+    text = """🚀 <b>How to Deploy</b>
+━━━━━━━━━━━━━━━━━━━━━━
+To host your application on <b>BrahMos Cloud</b>, choose one of these methods:
+
+1️⃣ <b>GitHub Repository:</b>
+Send the public URL of your GitHub repo (e.g., <code>https://github.com/user/repo</code>).
+
+2️⃣ <b>ZIP Archive:</b>
+Upload a <code>.zip</code> file containing your project's source code.
+
+<i>Our AI will automatically scan your files, create a <code>start.sh</code>, and deploy your container in seconds.</i>"""
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("⬅️ Back", callback_data="account_info"))
+    
+    try:
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    except Exception:
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("logs_"))
+def view_logs_callback(call):
+    container_id = call.data.replace("logs_", "")
+    bot.answer_callback_query(call.id, "⌛ Fetching logs...")
+    
+    try:
+        client = shell_worker.client
+        container = client.containers.get(container_id)
+        logs = container.logs(tail=20).decode("utf-8")
+        
+        if not logs:
+            logs = "No recent logs found."
+            
+        text = f"📋 <b>Recent Logs:</b>\n<code>\n{logs}\n</code>"
+        bot.send_message(call.message.chat.id, text)
+    except Exception as e:
+        bot.answer_callback_query(call.id, f"❌ Error: {str(e)}", show_alert=True)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("redeploy_"))
+def redeploy_callback(call):
+    bot.answer_callback_query(call.id, "🔄 Redeploy feature coming soon!", show_alert=True)
 
 if __name__ == "__main__":
     # Start Resource Watchdog

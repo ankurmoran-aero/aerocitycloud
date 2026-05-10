@@ -4,16 +4,19 @@ TIERS = {
     "free": {
         "ram": config.FREE_TIER_RAM,
         "disk": config.FREE_TIER_DISK,
-        "max_bots": 1
+        "max_bots": 3
     },
     "pro": {
         "ram": config.PRO_TIER_RAM,
         "disk": config.PRO_TIER_DISK,
-        "max_bots": 5
+        "max_bots": 10
     }
 }
 
-def can_deploy(user_state):
+def can_deploy(user_state, is_admin=False):
+    if is_admin:
+        return True, "Admin access granted."
+        
     tier = user_state.get("tier", "free")
     limits = TIERS.get(tier, TIERS["free"])
     
