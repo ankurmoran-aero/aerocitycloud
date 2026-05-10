@@ -26,8 +26,7 @@ def monitor_resources():
                 if len(parts) >= 4:
                     user_id = parts[2]
                     user_state = state_manager.get_user(user_id)
-                    tier = user_state.get("tier", "free")
-                    limits = subscription_manager.get_limits(tier)
+                    limits = subscription_manager.get_limits(user_state)
                     
                     if mem_usage > limits["ram"]:
                         print(f"Container {container.name} exceeded RAM limit ({mem_usage:.2f}MB > {limits['ram']}MB). Killing...")

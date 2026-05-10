@@ -1,4 +1,5 @@
 import configuration as config
+from datetime import datetime
 
 TIERS = {
     "free": {
@@ -13,11 +14,27 @@ TIERS = {
     }
 }
 
+def is_premium_active(user_state):
+    expiry = user_state.get("premium_expiry")
+    if not expiry:
+        return False
+        
+    try:
+        expiry_dt = datetime.strptime(expiry, "%Y-%m-%d %H:%M:%S")
+        return datetime.now() < expiry_dt
+    except Exception:
+        return False
+
 def can_deploy(user_state, is_admin=False):
     if is_admin:
         return True, "Admin access granted."
         
     tier = user_state.get("tier", "free")
+    
+    # Check for premium expiry
+    if tier == "pro" and not is_premium_active(user_state):
+        return False, "Your premium subscription has expired. Please renew to deploy more bots."
+        
     limits = TIERS.get(tier, TIERS["free"])
     
     if len(user_state.get("active_bots", [])) >= limits["max_bots"]:
@@ -25,5 +42,8 @@ def can_deploy(user_state, is_admin=False):
     
     return True, "Ready to deploy."
 
-def get_limits(tier):
+def get_limits(user_state):
+    tier = user_state.get("tier", "free")
+    if tier == "pro" and not is_premium_active(user_state):
+        tier = "free"
     return TIERS.get(tier, TIERS["free"])

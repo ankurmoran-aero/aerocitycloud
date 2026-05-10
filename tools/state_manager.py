@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timedelta
 
 DB_FILE = os.path.join(os.path.dirname(__file__), '..', 'database.json')
 
@@ -27,20 +28,37 @@ def get_user(user_id):
         # Initialize default user state
         db["users"][user_id_str] = {
             "tier": "free",
+            "premium_expiry": None, # Date string or None
             "active_bots": [],
             "resource_usage": {"ram": 0, "disk": 0}
         }
         save_db(db)
-    return db["users"][user_id_str]
+    
+    user = db["users"][user_id_str]
+    # Handle legacy users without premium_expiry field
+    if "premium_expiry" not in user:
+        user["premium_expiry"] = None
+        save_db(db)
+        
+    return user
 
-def update_user_tier(user_id, tier):
+def update_user_premium(user_id, days):
     db = load_db()
     user_id_str = str(user_id)
-    if user_id_str in db["users"]:
-        db["users"][user_id_str]["tier"] = tier
-        save_db(db)
-        return True
-    return False
+    if user_id_str not in db["users"]:
+        get_user(user_id)
+        db = load_db()
+        
+    if days > 0:
+        expiry_date = datetime.now() + timedelta(days=days)
+        db["users"][user_id_str]["tier"] = "pro"
+        db["users"][user_id_str]["premium_expiry"] = expiry_date.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        db["users"][user_id_str]["tier"] = "free"
+        db["users"][user_id_str]["premium_expiry"] = None
+        
+    save_db(db)
+    return True
 
 def add_container(user_id, container_id, codebase_id):
     db = load_db()

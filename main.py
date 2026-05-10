@@ -192,20 +192,48 @@ def deploy_command_manual(message):
     pat_token = args[2] if len(args) > 2 else None
     process_deployment(message, repo_url=repo_url, custom_pat=pat_token)
 
-@bot.message_handler(commands=['givepremium'])
-def give_premium(message):
+@bot.message_handler(commands=['addpremium'])
+def add_premium_admin(message):
+    if message.from_user.id != config.ADMIN_ID:
+        return
+    
+    args = message.text.split()
+    if len(args) < 3:
+        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/addpremium <user_id> <days></code>")
+    
+    target_id = args[1]
+    try:
+        days = int(args[2])
+    except ValueError:
+        return bot.reply_to(message, "❌ Invalid days provided.")
+        
+    if state_manager.update_user_premium(target_id, days):
+        bot.reply_to(message, f"✅ User <code>{target_id}</code> now has <b>PRO</b> access for {days} days.")
+        try:
+            bot.send_message(target_id, f"💎 <b>Premium Activated!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYou have been granted <b>PRO</b> access for {days} days. Your limits are now expanded! 🚀")
+        except Exception:
+            pass
+    else:
+        bot.reply_to(message, "❌ Failed to update premium status.")
+
+@bot.message_handler(commands=['rempremium'])
+def rem_premium_admin(message):
     if message.from_user.id != config.ADMIN_ID:
         return
     
     args = message.text.split()
     if len(args) < 2:
-        return bot.reply_to(message, "Usage: /givepremium [user_id]")
+        return bot.reply_to(message, "⚠️ <b>Usage:</b> <code>/rempremium <user_id></code>")
     
     target_id = args[1]
-    if state_manager.update_user_tier(target_id, "pro"):
-        bot.reply_to(message, f"✅ User <code>{target_id}</code> has been elevated to <b>PRO</b> tier.")
+    if state_manager.update_user_premium(target_id, 0):
+        bot.reply_to(message, f"✅ User <code>{target_id}</code> has been returned to the <b>FREE</b> tier.")
+        try:
+            bot.send_message(target_id, "⚠️ <b>Premium Expired/Removed</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYour PRO access has been revoked. You have returned to the <b>FREE</b> tier limits.")
+        except Exception:
+            pass
     else:
-        bot.reply_to(message, "❌ User not found in database.")
+        bot.reply_to(message, "❌ Failed to remove premium.")
 
 @bot.message_handler(commands=['listusers'])
 def list_users_admin(message):
@@ -526,13 +554,19 @@ def account_info_callback(call):
     is_admin = (user_id == config.ADMIN_ID)
     tier = "👑 ADMIN" if is_admin else user_state.get("tier", "free").upper()
     active_bots = len(projects)
-    ram_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state.get('tier'))['ram']}MB"
-    disk_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state.get('tier'))['disk']}MB"
+    ram_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state)['ram']}MB"
+    disk_limit = "Unlimited" if is_admin else f"{subscription_manager.get_limits(user_state)['disk']}MB"
     
+    expiry_text = ""
+    if not is_admin and user_state.get("tier") == "pro":
+        expiry = user_state.get("premium_expiry")
+        if expiry:
+            expiry_text = f"\n📅 <b>Expiry:</b> <code>{expiry}</code>"
+
     text = f"""👤 <b>Account Overview</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 <b>User ID:</b> <code>{user_id}</code>
-<b>Current Tier:</b> {tier}
+<b>Current Tier:</b> {tier}{expiry_text}
 
 <b>Limits:</b>
 • RAM: {ram_limit}
