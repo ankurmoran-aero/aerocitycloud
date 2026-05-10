@@ -84,10 +84,28 @@ def stop_container(container_id):
     try:
         container = client.containers.get(container_id)
         container.stop()
+        return True
+    except docker.errors.NotFound:
+        return True 
+    except Exception:
+        return False
+
+def start_container(container_id):
+    try:
+        container = client.containers.get(container_id)
+        container.start()
+        return True
+    except Exception:
+        return False
+
+def remove_container_physical(container_id):
+    try:
+        container = client.containers.get(container_id)
+        container.stop()
         container.remove()
         return True
     except docker.errors.NotFound:
-        return True # Already gone
+        return True
     except Exception:
         return False
 

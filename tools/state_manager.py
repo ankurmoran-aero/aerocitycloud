@@ -104,6 +104,14 @@ def get_container_by_codebase(user_id, codebase_id):
                     return info
     return None
 
+def update_container_status(container_id, status):
+    db = load_db()
+    if container_id in db["containers"]:
+        db["containers"][container_id]["status"] = status
+        save_db(db)
+        return True
+    return False
+
 def remove_container(container_id):
     db = load_db()
     if container_id in db["containers"]:

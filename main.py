@@ -452,13 +452,17 @@ def manage_app_callback(call):
 Choose an action below to control your application."""
 
     markup = types.InlineKeyboardMarkup()
-    btn_stop = types.InlineKeyboardButton("🛑 Stop", callback_data=f"stop_{codebase_id}")
+    if proj['status'] == 'running':
+        btn_action = types.InlineKeyboardButton("🛑 Stop", callback_data=f"stop_{codebase_id}")
+    else:
+        btn_action = types.InlineKeyboardButton("▶️ Start", callback_data=f"start_{codebase_id}")
+        
     btn_redeploy = types.InlineKeyboardButton("🔄 Redeploy", callback_data=f"redeploy_{codebase_id}")
     btn_delete = types.InlineKeyboardButton("🗑 Delete", callback_data=f"delete_{codebase_id}")
     btn_logs = types.InlineKeyboardButton("📋 View Logs", callback_data=f"logs_{codebase_id}")
     btn_back = types.InlineKeyboardButton("⬅️ Back to My Apps", callback_data="my_apps")
     
-    markup.row(btn_stop, btn_redeploy)
+    markup.row(btn_action, btn_redeploy)
     markup.row(btn_logs, btn_delete)
     markup.row(btn_back)
     
@@ -481,8 +485,8 @@ def stop_command_manual(message):
         return bot.reply_to(message, "❌ Application not found.")
         
     if shell_worker.stop_container(proj['container_id']):
-        state_manager.remove_container(proj['container_id'])
-        bot.reply_to(message, f"✅ Application <code>{app_id}</code> stopped and removed.")
+        state_manager.update_container_status(proj['container_id'], "stopped")
+        bot.reply_to(message, f"✅ Application <code>{app_id}</code> has been stopped.")
     else:
         bot.reply_to(message, "❌ Failed to stop container.")
 
@@ -497,7 +501,7 @@ def delete_app_callback(call):
         
     bot.answer_callback_query(call.id, "🗑 Deleting container and files...")
     
-    if shell_worker.stop_container(proj['container_id']):
+    if shell_worker.remove_container_physical(proj['container_id']):
         path = os.path.join(shell_worker.STORAGE_BASE, str(user_id), codebase_id)
         import shutil
         if os.path.exists(path):
@@ -521,11 +525,29 @@ def stop_app_callback(call):
     bot.answer_callback_query(call.id, "⌛ Stopping container...")
     
     if shell_worker.stop_container(proj['container_id']):
-        state_manager.remove_container(proj['container_id'])
+        state_manager.update_container_status(proj['container_id'], "stopped")
         bot.answer_callback_query(call.id, "✅ Application stopped.", show_alert=True)
-        my_apps_callback(call)
+        manage_app_callback(call)
     else:
         bot.answer_callback_query(call.id, "❌ Failed to stop container.", show_alert=True)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("start_"))
+def start_app_callback(call):
+    codebase_id = call.data.replace("start_", "")
+    user_id = call.from_user.id
+    proj = state_manager.get_container_by_codebase(user_id, codebase_id)
+    
+    if not proj:
+        return bot.answer_callback_query(call.id, "❌ Project not found.", show_alert=True)
+        
+    bot.answer_callback_query(call.id, "⌛ Starting container...")
+    
+    if shell_worker.start_container(proj['container_id']):
+        state_manager.update_container_status(proj['container_id'], "running")
+        bot.answer_callback_query(call.id, "✅ Application started.", show_alert=True)
+        manage_app_callback(call)
+    else:
+        bot.answer_callback_query(call.id, "❌ Failed to start container.", show_alert=True)
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_start")
 def back_start_callback(call):
