@@ -76,6 +76,8 @@ def stop_container(container_id):
         container.stop()
         container.remove()
         return True
+    except docker.errors.NotFound:
+        return True # Already gone
     except Exception:
         return False
 

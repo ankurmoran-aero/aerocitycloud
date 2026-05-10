@@ -487,6 +487,7 @@ Select a project to manage its status or deploy a new application.\n\n"""
             dir_id = proj['container_id'][:12]
             text += f"• {status_emoji} <b>Project:</b> <code>{code_id}</code> | <b>Dir ID:</b> <code>{dir_id}</code>\n"
             proj_buttons.append(types.InlineKeyboardButton(f"⚙️ {code_id}", callback_data=f"manage_{code_id}"))
+
         
         # Grid layout: 2 buttons per row
         for i in range(0, len(proj_buttons), 2):
