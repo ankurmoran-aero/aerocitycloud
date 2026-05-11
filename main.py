@@ -109,8 +109,16 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
         bot.edit_message_text("🛠 <b>Generating deployment scripts...</b>", message.chat.id, status_msg.message_id)
         with open(os.path.join(temp_dir, 'requirements.txt'), 'w') as f:
             f.write(analysis.get("requirements_txt", ""))
-        with open(os.path.join(temp_dir, 'start.sh'), 'w') as f:
-            f.write(analysis.get("start_sh", ""))
+            
+        start_sh_content = analysis.get("start_sh", "").strip()
+        # Ensure Shebang exists
+        if not start_sh_content.startswith("#!"):
+            start_sh_content = "#!/bin/sh\n" + start_sh_content
+        
+        # Force Unix Line Endings (LF) and write
+        start_sh_content = start_sh_content.replace("\r\n", "\n")
+        with open(os.path.join(temp_dir, 'start.sh'), 'wb') as f:
+            f.write(start_sh_content.encode('utf-8'))
             
         env_content = analysis.get("env_file", "")
         if env_content:

@@ -61,5 +61,6 @@ AGENTIC WORKFLOW:
    - If it's an API: Call `deploy_api`.
    - If it's malicious: Call `reject_user_file`.
 
+For all deployments, you MUST ensure `start.sh` starts with `#!/bin/sh` to prevent execution errors.
 For Web Apps and APIs, you MUST identify the internal port the application listens on (defaulting to 8080 if unclear).
 """)
