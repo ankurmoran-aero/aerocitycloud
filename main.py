@@ -137,9 +137,17 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None):
                 if container.status == "running":
                     access_info = ""
                     if is_web:
-                        # Professional Subdomain URL
+                        # Netlify-style Default URL
                         web_url = f"http://{codebase_id}.{config.BASE_DOMAIN}"
-                        access_info = f"\n🌐 <b>URL:</b> {web_url}\n📍 <b>Internal Port:</b> <code>{assigned_port}</code>"
+                        # Raw IP access for immediate local testing
+                        try:
+                            vps_ip = requests.get('https://api.ipify.org', timeout=5).text
+                        except Exception:
+                            vps_ip = "YOUR_VPS_IP"
+                            
+                        raw_access = f"http://{vps_ip}:{assigned_port}"
+                        
+                        access_info = f"\n🌐 <b>Default URL:</b> {web_url}\n🔗 <b>Raw Access:</b> <code>{raw_access}</code>"
                     
                     bot.edit_message_text(f"✅ <b>{proj_type.upper()} Deployed!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n<b>Status:</b> Running 🟢{access_info}\n\nManage your app in the dashboard.", message.chat.id, status_msg.message_id)
                 else:
@@ -500,10 +508,12 @@ Choose an action below to control your application."""
     btn_redeploy = types.InlineKeyboardButton("🔄 Redeploy", callback_data=f"redeploy_{codebase_id}")
     btn_delete = types.InlineKeyboardButton("🗑 Delete", callback_data=f"delete_{codebase_id}")
     btn_logs = types.InlineKeyboardButton("📋 View Logs", callback_data=f"logs_{codebase_id}")
+    btn_domain = types.InlineKeyboardButton("🌐 Custom Domain", callback_data=f"domain_{codebase_id}")
     btn_back = types.InlineKeyboardButton("⬅️ Back to My Apps", callback_data="my_apps")
     
     markup.row(btn_action, btn_redeploy)
     markup.row(btn_logs, btn_delete)
+    markup.row(btn_domain)
     markup.row(btn_back)
     
     try:
@@ -835,6 +845,38 @@ def view_logs_callback(call):
         bot.send_message(call.message.chat.id, text)
     except Exception as e:
         bot.answer_callback_query(call.id, f"❌ Error: {str(e)}", show_alert=True)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("domain_"))
+def custom_domain_callback(call):
+    codebase_id = call.data.replace("domain_", "")
+    bot.answer_callback_query(call.id)
+    
+    try:
+        vps_ip = requests.get('https://api.ipify.org', timeout=5).text
+    except Exception:
+        vps_ip = "YOUR_VPS_IP"
+
+    text = f"""🌐 <b>Connect Your Custom Domain</b>
+━━━━━━━━━━━━━━━━━━━━━━
+To point your own domain (e.g., <code>api.example.com</code>) to your project <b>{codebase_id}</b>, follow these steps:
+
+1️⃣ <b>Configure DNS:</b>
+Go to your domain provider (Cloudflare, Namecheap, etc.) and add an <b>A Record</b>:
+• <b>Name:</b> your-subdomain (or @ for root)
+• <b>Value:</b> <code>{vps_ip}</code>
+
+2️⃣ <b>Secure with Cloudflare (Recommended):</b>
+Enable the <b>Proxy (Orange Cloud)</b> in Cloudflare. This hides your VPS IP and protects you from DDoS attacks.
+
+<i>Once pointed, contact the administrator to finalize the SSL/Nginx configuration for your domain.</i>"""
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton("⬅️ Back", callback_data=f"manage_{codebase_id}"))
+    
+    try:
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+    except Exception:
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("redeploy_"))
 def redeploy_callback(call):
