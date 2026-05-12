@@ -65,7 +65,8 @@ def get_user(user_id):
             "tier": "free",
             "premium_expiry": None, # Date string or None
             "active_bots": [],
-            "resource_usage": {"ram": 0, "disk": 0}
+            "resource_usage": {"ram": 0, "disk": 0},
+            "github_token": None
         }
         save_db(db)
     
@@ -75,7 +76,22 @@ def get_user(user_id):
         user["premium_expiry"] = None
         save_db(db)
         
+    if "github_token" not in user:
+        user["github_token"] = None
+        save_db(db)
+        
     return user
+
+def update_user_github_token(user_id, token):
+    db = load_db()
+    user_id_str = str(user_id)
+    if user_id_str not in db["users"]:
+        get_user(user_id)
+        db = load_db()
+    
+    db["users"][user_id_str]["github_token"] = token
+    save_db(db)
+    return True
 
 def update_user_premium(user_id, days, tier="pro"):
     db = load_db()

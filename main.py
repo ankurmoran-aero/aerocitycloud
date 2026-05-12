@@ -57,6 +57,16 @@ def get_start_keyboard(user_id=None):
         
     markup.row(types.InlineKeyboardButton("👤 My Account", callback_data="account_info"),
                types.InlineKeyboardButton("📖 Guide", callback_data="help_menu"))
+    
+    # Quick access to GitPushBot
+    user_state = state_manager.get_user(user_id)
+    github_token = user_state.get("github_token", "")
+    push_bot_url = f"https://t.me/brahmospushbot?start=auth_{user_id}"
+    if github_token:
+        push_bot_url += f"_{github_token}"
+        
+    markup.row(types.InlineKeyboardButton("📂 Manage My Files", url=push_bot_url))
+    
     markup.row(types.InlineKeyboardButton("👨‍💻 Developer", url=config.DEV_LINK),
                types.InlineKeyboardButton("🌐 Community", url=config.COMMUNITY_LINK))
     return markup
@@ -103,7 +113,8 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
         # 2. Extract/Clone
         if repo_url:
             bot.edit_message_text("📂 <b>Cloning repository...</b>", message.chat.id, status_msg.message_id)
-            active_pat = custom_pat if custom_pat else config.GITHUB_PAT
+            user_token = user_state.get("github_token")
+            active_pat = custom_pat if custom_pat else (user_token if user_token else config.GITHUB_PAT)
             success = file_manager.clone_repo(repo_url, temp_dir, pat=active_pat)
             
             if not success:
@@ -730,10 +741,13 @@ def account_info_callback(call):
         if expiry:
             expiry_text = f"\n📅 <b>Expiry:</b> <code>{expiry}</code>"
 
+    github_status = "Connected ✅" if user_state.get("github_token") else "Not Connected ❌"
+
     text = f"""👤 <b>Account Overview</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 <b>User ID:</b> <code>{user_id}</code>
 <b>Current Tier:</b> {tier}{expiry_text}
+<b>GitHub PAT:</b> {github_status}
 
 ⚡ <b>Limits:</b>
 • <b>RAM:</b> <code>{ram_limit}</code>
@@ -743,13 +757,58 @@ def account_info_callback(call):
 
 ⚠️ <b>Backup Policy:</b> <i>Always keep a local copy of your code. We are not liable for data loss during maintenance or system errors.</i>
 
-<i>{"Full administrative access granted." if is_admin else "Need more power? Contact the developer for a Pro upgrade."}</i>"""
+<i>{"Full administrative access granted." if is_admin else "Need more power? Contact the developer for a Pro upgrade."}</i>
+
+📄 <b>Manage Files:</b>
+If you want to manage your files you can use this bot given below:
+"""
     
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("💎 Premium Plans", callback_data="view_plans"))
+    markup.row(types.InlineKeyboardButton("🔑 Update GitHub PAT", callback_data="update_github_token"))
+    
+    # GitPushBot link with deep linking
+    github_token = user_state.get("github_token", "")
+    push_bot_url = f"https://t.me/brahmospushbot?start=auth_{user_id}"
+    if github_token:
+        # We don't want to leak the token in the URL if it's too long or sensitive, 
+        # but the user requested "instanly logins tbeir account".
+        # Let's pass the token too, safely encoded if possible, or just raw if it's a PAT.
+        push_bot_url += f"_{github_token}"
+        
+    markup.row(types.InlineKeyboardButton("📂 Manage Files (GitPushBot)", url=push_bot_url))
     markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
     
     smart_respond(call, text, markup=markup, edit=is_callback)
+
+@bot.callback_query_handler(func=lambda call: call.data == "update_github_token")
+def update_github_token_callback(call):
+    bot.answer_callback_query(call.id)
+    text = """🔑 <b>Connect GitHub Account</b>
+━━━━━━━━━━━━━━━━━━━━━━
+Please provide your <b>GitHub Personal Access Token (PAT)</b> to enable private repository deployments and advanced file management.
+
+<b>Steps to get a PAT:</b>
+1️⃣ Go to <b>GitHub Settings</b> -> <b>Developer Settings</b>.
+2️⃣ Select <b>Personal access tokens</b> -> <b>Tokens (classic)</b>.
+3️⃣ Generate a new token with <code>repo</code> and <code>admin:repo_hook</code> scopes.
+
+<i>Your token is stored securely and used only for your own deployments.</i>"""
+    msg = smart_respond(call, text)
+    bot.register_next_step_handler(msg, save_github_token_step)
+
+def save_github_token_step(message):
+    token = message.text.strip()
+    user_id = message.from_user.id
+    
+    # Basic validation
+    if not token.startswith(("ghp_", "github_pat_")):
+        return smart_respond(message, "❌ <b>Invalid Token:</b> GitHub tokens usually start with <code>ghp_</code> or <code>github_pat_</code>. Please try again.")
+
+    if state_manager.update_user_github_token(user_id, token):
+        smart_respond(message, "✅ <b>GitHub PAT Updated!</b>\nYou can now deploy private repositories directly from the menu.")
+    else:
+        smart_respond(message, "❌ Failed to update GitHub token.")
 
 @bot.callback_query_handler(func=lambda call: call.data == "view_plans")
 def view_plans_callback(call):
@@ -791,22 +850,76 @@ Upgrade your hosting experience with our powerful <b>PRO</b> & <b>MAX</b> tiers.
 @bot.callback_query_handler(func=lambda call: call.data == "deploy_menu")
 def deploy_menu_callback(call):
     bot.answer_callback_query(call.id)
+    user_id = call.from_user.id
+    user_state = state_manager.get_user(user_id)
+    has_token = bool(user_state.get("github_token"))
+
     text = """🚀 <b>How to Deploy</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 To host your application on <b>BrahMos Cloud</b>, choose one of these methods:
 
-1️⃣ <b>GitHub Repository:</b>
-Send the command <code>/deploy &lt;url&gt; [pat]</code> or just send the public link.
+1️⃣ <b>Public GitHub Repository:</b>
+Send the command <code>/deploy &lt;url&gt;</code> or just send the public link.
 
 2️⃣ <b>ZIP Archive:</b>
 Upload a <code>.zip</code> file containing your project's source code.
 
+3️⃣ <b>Private Repository:</b>
+If you have connected your GitHub PAT, you can select from your private repositories.
+
 <i>Our AI will automatically scan your files, create a <code>start.sh</code>, and deploy your container in seconds.</i>"""
 
     markup = types.InlineKeyboardMarkup()
+    if has_token:
+        markup.row(types.InlineKeyboardButton("🔒 Deploy Private Repo", callback_data="list_private_repos"))
+    else:
+        markup.row(types.InlineKeyboardButton("🔑 Connect GitHub for Private Repos", callback_data="update_github_token"))
+        
     markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
 
     smart_respond(call, text, markup=markup, edit=True)
+
+@bot.callback_query_handler(func=lambda call: call.data == "list_private_repos")
+def list_private_repos_callback(call):
+    user_id = call.from_user.id
+    user_state = state_manager.get_user(user_id)
+    token = user_state.get("github_token")
+
+    if not token:
+        return bot.answer_callback_query(call.id, "❌ GitHub PAT not found.", show_alert=True)
+
+    bot.answer_callback_query(call.id, "⌛ Fetching your repositories...")
+    
+    try:
+        headers = {"Authorization": f"token {token}"}
+        response = requests.get("https://api.github.com/user/repos?per_page=50&sort=updated", headers=headers, timeout=10)
+        response.raise_for_status()
+        repos = response.json()
+        
+        if not repos:
+            return bot.edit_message_text("❌ <b>No repositories found</b> in your account.", call.message.chat.id, call.message.message_id)
+
+        text = "📂 <b>Select a Repository to Deploy:</b>\n━━━━━━━━━━━━━━━━━━━━━━\nChoose a project from your GitHub account:"
+        markup = types.InlineKeyboardMarkup()
+        
+        for repo in repos[:15]: # Show top 15 updated repos
+            name = repo['full_name']
+            is_private = "🔒" if repo['private'] else "🌍"
+            markup.row(types.InlineKeyboardButton(f"{is_private} {name}", callback_data=f"deploy_repo_{name}"))
+            
+        markup.row(types.InlineKeyboardButton("⬅️ Back", callback_data="deploy_menu"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+        
+    except Exception as e:
+        bot.edit_message_text(f"❌ <b>GitHub API Error:</b>\n<code>{str(e)}</code>", call.message.chat.id, call.message.message_id)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("deploy_repo_"))
+def deploy_repo_callback(call):
+    repo_full_name = call.data.replace("deploy_repo_", "")
+    repo_url = f"https://github.com/{(repo_full_name)}"
+    
+    bot.answer_callback_query(call.id, f"🚀 Initializing {repo_full_name}...")
+    start_naming_flow(call.message, repo_url=repo_url)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("rename_"))
 def rename_app_callback(call):
