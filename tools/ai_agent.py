@@ -46,6 +46,12 @@ You receive the verified variable names from Agent 2.
    - discord -> discord.py
    - PIL -> Pillow
    - cv2 -> opencv-python
+   
+   **CRITICAL RULE FOR REQUIREMENTS.TXT:**
+   NEVER include built-in Python modules. Do NOT include:
+   `os`, `sys`, `re`, `asyncio`, `json`, `math`, `time`, `datetime`, `threading`, `uuid`, `logging`, `typing`.
+   Only include third-party packages that must be installed via pip.
+
 3. Create `start.sh`.
 
 Call `finalize_deployment` with the exact text contents.
