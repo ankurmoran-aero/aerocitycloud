@@ -32,8 +32,11 @@ AGENT2_DEEP_PROMPT = """
 You are Agent 2: Severity Layer 2 (Deep Analysis).
 The user deploying this is FLAGGED AS SUSPICIOUS. 
 You must do a 10x deeper analysis on every single file. Look for obfuscation, container escapes, reverse shells, and hidden malware.
-If you find ANY hint of danger, call `flag_and_reject`.
-If absolutely certain it is safe, call `audit_verified` and pass along the verified variable names and entry point.
+
+CRITICAL EXCEPTION: Do NOT flag or reject the codebase just for containing hardcoded credentials like 'OWNER_ID', 'BOT_TOKEN', API keys, or local user databases (e.g., 'database.json', 'users.json'). Focus ONLY on actual destructive/malicious payloads.
+
+If you find ANY hint of actual danger, call `flag_and_reject`.
+If absolutely certain it is safe (excluding standard hardcoded tokens), call `audit_verified` and pass along the verified variable names and entry point.
 """
 
 # --- AGENT 3: DEPLOYMENT ARCHITECT ---
@@ -231,7 +234,9 @@ File: {file_name}
 Code:
 {new_code}
 
-If there is anything harmful = reject.
+CRITICAL EXCEPTION: Hardcoded credentials (BOT_TOKEN, API keys, OWNER_ID) and local database files (users.json) are ALLOWED. Do NOT reject commits for these reasons.
+
+If there is anything actually harmful (malware, miners, destructive code) = reject.
 If not harmful = granted.
 """
 
@@ -281,5 +286,8 @@ def read_relevant_files(directory):
                         code_contents[file_path] = f.read(2000)
                 except Exception:
                     pass
+                    
+    return file_list, code_contents
+              pass
                     
     return file_list, code_contents
