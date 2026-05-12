@@ -198,7 +198,7 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
                     bot.edit_message_text(f"✅ <b>{proj_type.upper()} Deployed!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n<b>Status:</b> Running 🟢{access_info}\n\nManage your app in the dashboard.", message.chat.id, status_msg.message_id)
                 else:
                     logs = container.logs(tail=20).decode("utf-8")
-                    bot.edit_message_text(f"⚠️ <b>Deployment Alert:</b> Container started but is now <code>{container.status}</code>.\n\n<b>Recent Logs:</b>\n<code>{html.escape(logs)}</code>", message.chat.id, status_msg.message_id)
+                    bot.edit_message_text(f"⚠️ <b>Deployment Alert:</b> Container started but is now <code>{container.status}</code>.\n\nYour project has multiple errors, please fix:\n```Error Log\n{html.escape(logs)}\n```", message.chat.id, status_msg.message_id)
             except Exception:
                 bot.edit_message_text(f"✅ <b>Deployment Initialized!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<b>Bot ID:</b> <code>{codebase_id}</code>\n\nCheck status in your dashboard.", message.chat.id, status_msg.message_id)
         else:
@@ -855,7 +855,7 @@ def view_logs_callback(call):
         if not logs:
             logs = "No recent logs found."
             
-        text = f"📋 <b>Recent Logs ({codebase_id}):</b>\n<code>\n{logs}\n</code>"
+        text = f"📋 <b>Recent Logs ({codebase_id}):</b>\n```Error Log\n{html.escape(logs)}\n```"
         smart_respond(call, text)
     except Exception as e:
         bot.answer_callback_query(call.id, f"❌ Error: {str(e)}", show_alert=True)
