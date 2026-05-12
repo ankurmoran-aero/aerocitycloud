@@ -288,6 +288,3 @@ def read_relevant_files(directory):
                     pass
                     
     return file_list, code_contents
-              pass
-                    
-    return file_list, code_contents
