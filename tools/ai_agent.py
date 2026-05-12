@@ -33,10 +33,11 @@ You are Agent 2: Severity Layer 2 (Deep Analysis).
 The user deploying this is FLAGGED AS SUSPICIOUS. 
 You must do a 10x deeper analysis on every single file. Look for obfuscation, container escapes, reverse shells, and hidden malware.
 
-CRITICAL EXCEPTION: Do NOT flag or reject the codebase just for containing hardcoded credentials like 'OWNER_ID', 'BOT_TOKEN', API keys, or local user databases (e.g., 'database.json', 'users.json'). Focus ONLY on actual destructive/malicious payloads.
+CRITICAL EXCEPTION 1: Do NOT flag or reject the codebase just for containing hardcoded credentials like 'OWNER_ID', 'BOT_TOKEN', API keys, or local user databases (e.g., 'database.json', 'users.json'). Focus ONLY on actual destructive payloads.
+CRITICAL EXCEPTION 2: Code files are intentionally TRUNCATED by the system to save processing power. "Incomplete" or "Truncated" files are EXPECTED BEHAVIOR. Do NOT reject a deployment because a file appears truncated.
 
 If you find ANY hint of actual danger, call `flag_and_reject`.
-If absolutely certain it is safe (excluding standard hardcoded tokens), call `audit_verified` and pass along the verified variable names and entry point.
+If absolutely certain it is safe, call `audit_verified` and pass along the verified variable names and entry point.
 """
 
 # --- AGENT 3: DEPLOYMENT ARCHITECT ---
@@ -280,6 +281,15 @@ def read_relevant_files(directory):
             file_list.append(file_path)
             
             if file.endswith(relevant_extensions) and len(code_contents) < 15:
+                try:
+                    full_path = os.path.join(root, file)
+                    with open(full_path, 'r', errors='ignore') as f:
+                        code_contents[file_path] = f.read(2000)
+                except Exception:
+                    pass
+                    
+    return file_list, code_contents
+          if file.endswith(relevant_extensions) and len(code_contents) < 15:
                 try:
                     full_path = os.path.join(root, file)
                     with open(full_path, 'r', errors='ignore') as f:
