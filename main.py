@@ -1073,7 +1073,3 @@ if __name__ == "__main__":
     
     print("BrahMos Cloud Bot is starting...")
     bot.infinity_polling()
-.start_listener, daemon=True).start()
-    
-    print("BrahMos Cloud Bot is starting...")
-    bot.infinity_polling()
