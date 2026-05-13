@@ -140,8 +140,13 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
         # 4. Preparation (Agent 3 output)
         bot.edit_message_text("🏗 <b>Agent 3: Deployment Architect</b> is finalizing files...", message.chat.id, status_msg.message_id)
         
-        with open(os.path.join(temp_dir, 'requirements.txt'), 'w') as f:
-            f.write(deployment_data.get("requirements_txt", ""))
+        if deployment_data.get("requirements_txt"):
+            with open(os.path.join(temp_dir, 'requirements.txt'), 'w') as f:
+                f.write(deployment_data.get("requirements_txt", ""))
+        
+        if deployment_data.get("package_json"):
+            with open(os.path.join(temp_dir, 'package.json'), 'w') as f:
+                f.write(deployment_data.get("package_json", ""))
             
         start_sh_content = deployment_data.get("start_sh", "").strip()
         if not start_sh_content.startswith("#!"):

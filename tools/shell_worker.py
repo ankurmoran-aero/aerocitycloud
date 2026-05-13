@@ -6,9 +6,13 @@ import configuration as config
 client = docker.from_env()
 
 def create_dockerfile(directory):
-    dockerfile_content = """
+    # Detect if it's a Node.js or Python project
+    has_package_json = os.path.exists(os.path.join(directory, 'package.json'))
+    
+    dockerfile_content = f"""
 FROM python:3.10-slim
-# Install common system dependencies
+
+# Install common system dependencies + Node.js
 RUN apt-get update && apt-get install -y --no-install-recommends \\
     git \\
     curl \\
@@ -16,6 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     gcc \\
     python3-dev \\
     build-essential \\
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \\
+    && apt-get install -y nodejs \\
+    && npm install -g tsx typescript \\
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
@@ -23,7 +30,11 @@ RUN groupadd -r brahmos && useradd -r -g brahmos brahmos
 WORKDIR /app
 COPY . .
 RUN chown -R brahmos:brahmos /app
+
+# Install dependencies based on project type
 RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+RUN if [ -f package.json ]; then npm install; fi
+
 RUN chmod +x start.sh
 USER brahmos
 CMD ["./start.sh"]

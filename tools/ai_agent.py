@@ -50,9 +50,9 @@ If absolutely certain it is safe, call `audit_verified` and pass along the verif
 # --- AGENT 3: DEPLOYMENT ARCHITECT ---
 AGENT3_PROMPT = """
 You are Agent 3: The Deployment Architect.
-You receive the verified variable names, exact entry point file, and a list of detected imports.
+You receive the verified variable names, exact entry point file, and a list of detected imports (Python and/or JS).
 1. Create a `.env` file using EXACTLY those variable names. (Provide placeholder values or extract them if present).
-2. Create `requirements.txt` strictly based on the structure and imports. 
+2. For Python projects: Create `requirements.txt` strictly based on the structure and imports. 
    **BE CAREFUL OF HALLUCINATIONS**. Map these strictly:
    - telebot -> pyTelegramBotAPI
    - flask -> Flask
@@ -82,7 +82,14 @@ You receive the verified variable names, exact entry point file, and a list of d
    `os`, `sys`, `re`, `asyncio`, `json`, `math`, `time`, `datetime`, `threading`, `uuid`, `logging`, `typing`, `sqlite3`, `pathlib`, `collections`, `itertools`, `functools`, `abc`, `enum`, `glob`, `shutil`, `tempfile`, `hashlib`, `hmac`, `base64`, `urllib`, `socket`, `struct`, `pickle`, `marshal`, `inspect`, `traceback`, `random`, `statistics`, `decimal`, `fractions`, `cmath`, `multiprocessing`, `concurrent`, `subprocess`.
    Only include third-party packages that must be installed via pip.
 
-3. Create `start.sh`. YOU MUST USE THE EXACT ENTRY POINT FILE NAME PROVIDED. If it has spaces, wrap it in quotes (e.g. `python "bot (1).py"`).
+3. For Node.js/TypeScript projects: Create a `package.json` if one is missing, including the necessary dependencies.
+   - If the entry point is `.ts`, use `tsx` to run it in `start.sh`.
+   
+4. Create `start.sh`. YOU MUST USE THE EXACT ENTRY POINT FILE NAME PROVIDED. 
+   - Python example: `python "bot.py"`
+   - Node.js example: `node "app.js"`
+   - TypeScript example: `tsx "index.ts"`
+   If it has spaces, wrap it in quotes.
 
 Call `finalize_deployment` with the exact text contents.
 """
@@ -90,14 +97,29 @@ Call `finalize_deployment` with the exact text contents.
 def extract_imports(code_contents):
     """
     Extract top-level imports from the code using regex to guide the AI.
+    Handles both Python and JS/TS imports.
     """
-    imports = set()
-    for code in code_contents.values():
-        # Match 'import package' or 'from package import ...'
-        found = re.findall(r'^\s*(?:import|from)\s+([a-zA-Z0-9_]+)', code, re.MULTILINE)
-        for imp in found:
-            imports.add(imp)
-    return list(imports)
+    python_imports = set()
+    js_imports = set()
+    for file_path, code in code_contents.items():
+        if file_path.endswith('.py'):
+            # Match 'import package' or 'from package import ...'
+            found = re.findall(r'^\s*(?:import|from)\s+([a-zA-Z0-9_]+)', code, re.MULTILINE)
+            for imp in found:
+                python_imports.add(imp)
+        elif file_path.endswith(('.js', '.ts')):
+            # Match 'import ... from "package"' or 'require("package")'
+            found_import = re.findall(r'from\s+[\'"]([@a-zA-Z0-9_/.-]+)[\'"]', code)
+            found_require = re.findall(r'require\([\'"]([@a-zA-Z0-9_/.-]+)[\'"]\)', code)
+            for imp in found_import + found_require:
+                # Get the base package name (handle scoped packages like @types/node)
+                if imp.startswith('@'):
+                    base = '/'.join(imp.split('/')[:2])
+                else:
+                    base = imp.split('/')[0]
+                js_imports.add(base)
+    
+    return {"python": list(python_imports), "js": list(js_imports)}
 
 def call_ai(prompt, tools, tool_choice="required"):
     headers = {
@@ -234,11 +256,12 @@ def orchestrate_deployment(user_id, file_path_list, code_contents, existing_entr
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "requirements_txt": { "type": "string", "description": "Ensure exact mapping. No hallucinations. Only include third-party packages. Prefer package names without version pinning unless a specific version is clearly required." },
+                        "requirements_txt": { "type": "string", "description": "For Python projects. Prefer package names without version pinning unless a specific version is clearly required." },
+                        "package_json": { "type": "string", "description": "For Node.js/TypeScript projects. Generate a complete package.json." },
                         "env_file": { "type": "string", "description": "Built from variables passed by Agent 2." },
                         "start_sh": { "type": "string" }
                     },
-                    "required": ["requirements_txt", "env_file", "start_sh"]
+                    "required": ["env_file", "start_sh"]
                 }
             }
         }
@@ -256,6 +279,7 @@ def orchestrate_deployment(user_id, file_path_list, code_contents, existing_entr
         "internal_port": internal_port,
         "entry_point_file": final_entry_point,
         "requirements_txt": args3.get('requirements_txt', ''),
+        "package_json": args3.get('package_json', ''),
         "env_file": args3.get('env_file', ''),
         "start_sh": args3.get('start_sh', '')
     }

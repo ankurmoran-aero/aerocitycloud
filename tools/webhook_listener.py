@@ -70,8 +70,13 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
                     return {"status": "rejected"}
                 
                 # Update files (Agent 3 generated them)
-                with open(os.path.join(user_storage, 'requirements.txt'), 'w') as f:
-                    f.write(deployment_data.get("requirements_txt", ""))
+                if deployment_data.get("requirements_txt"):
+                    with open(os.path.join(user_storage, 'requirements.txt'), 'w') as f:
+                        f.write(deployment_data.get("requirements_txt", ""))
+                
+                if deployment_data.get("package_json"):
+                    with open(os.path.join(user_storage, 'package.json'), 'w') as f:
+                        f.write(deployment_data.get("package_json", ""))
                 
                 start_sh_content = deployment_data.get("start_sh", "").strip()
                 if not start_sh_content.startswith("#!"):
