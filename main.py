@@ -149,13 +149,13 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
                 f.write(deployment_data.get("package_json", ""))
             
         start_sh_content = deployment_data.get("start_sh", "").strip()
-        if not start_sh_content.startswith("#!"):
-            start_sh_content = "#!/bin/sh\n" + start_sh_content
-        
-        start_sh_content = start_sh_content.replace("\r\n", "\n")
-        with open(os.path.join(temp_dir, 'start.sh'), 'wb') as f:
-            f.write(start_sh_content.encode('utf-8'))
-            
+        if start_sh_content:
+            if not start_sh_content.startswith("#!"):
+                start_sh_content = "#!/bin/sh\n" + start_sh_content
+
+            start_sh_content = start_sh_content.replace("\r\n", "\n")
+            with open(os.path.join(temp_dir, 'start.sh'), 'wb') as f:
+                f.write(start_sh_content.encode('utf-8'))
         env_content = deployment_data.get("env_file", "")
         if env_content:
             with open(os.path.join(temp_dir, '.env'), 'w') as f:
@@ -1021,11 +1021,12 @@ def redeploy_callback(call):
                 f.write(deployment_data.get("requirements_txt", ""))
             
             start_sh_content = deployment_data.get("start_sh", "").strip()
-            if not start_sh_content.startswith("#!"):
-                start_sh_content = "#!/bin/sh\n" + start_sh_content
-            start_sh_content = start_sh_content.replace("\r\n", "\n")
-            with open(os.path.join(user_storage, 'start.sh'), 'wb') as f:
-                f.write(start_sh_content.encode('utf-8'))
+            if start_sh_content:
+                if not start_sh_content.startswith("#!"):
+                    start_sh_content = "#!/bin/sh\n" + start_sh_content
+                start_sh_content = start_sh_content.replace("\r\n", "\n")
+                with open(os.path.join(user_storage, 'start.sh'), 'wb') as f:
+                    f.write(start_sh_content.encode('utf-8'))
                 
             env_content = deployment_data.get("env_file", "")
             if env_content:

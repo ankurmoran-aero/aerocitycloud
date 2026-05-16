@@ -21,6 +21,7 @@ CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@BrahMosAI")
 AI_API_URL = os.getenv("AI_API_URL", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "gemini-3-flash-preview")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
 # --- GitHub Settings ---
 GITHUB_PAT = os.getenv("GITHUB_PAT", "")

@@ -81,11 +81,12 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
                         f.write(deployment_data.get("package_json", ""))
                 
                 start_sh_content = deployment_data.get("start_sh", "").strip()
-                if not start_sh_content.startswith("#!"):
-                    start_sh_content = "#!/bin/sh\n" + start_sh_content
-                start_sh_content = start_sh_content.replace("\r\n", "\n")
-                with open(os.path.join(user_storage, 'start.sh'), 'wb') as f:
-                    f.write(start_sh_content.encode('utf-8'))
+                if start_sh_content:
+                    if not start_sh_content.startswith("#!"):
+                        start_sh_content = "#!/bin/sh\n" + start_sh_content
+                    start_sh_content = start_sh_content.replace("\r\n", "\n")
+                    with open(os.path.join(user_storage, 'start.sh'), 'wb') as f:
+                        f.write(start_sh_content.encode('utf-8'))
                     
                 env_content = deployment_data.get("env_file", "")
                 if env_content:
