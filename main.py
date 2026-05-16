@@ -1036,18 +1036,23 @@ def redeploy_callback(call):
             existing_entry = deployment_data.get("entry_point_file")
     
     bot.edit_message_text("🐳 <b>Rebuilding Docker container...</b>", call.message.chat.id, call.message.message_id)
-    success, new_container_id = shell_worker.rebuild_container(user_id, codebase_id, port=assigned_port)
+    success, result = shell_worker.rebuild_container(user_id, codebase_id, port=assigned_port)
     if success:
+        new_container_id = result
         # Update state manager
         for cont_id, data in list(db["containers"].items()):
             if data["codebase_id"] == codebase_id:
                 state_manager.remove_container(cont_id)
                 
         state_manager.add_container(user_id, new_container_id, codebase_id, port=assigned_port, project_name=proj_name, entry_point_file=existing_entry)
-        bot.send_message(call.message.chat.id, "✅ Application redeployed successfully.")
+        bot.send_message(call.message.chat.id, "✅ <b>Application redeployed successfully.</b>", parse_mode='HTML')
         manage_app_callback(call, code_id=codebase_id)
     else:
-        bot.send_message(call.message.chat.id, f"❌ Failed to redeploy container.")
+        # Show Error Logs
+        error_msg = f"❌ <b>Redeployment Failed</b>\n━━━━━━━━━━━━━━━━━━━━━━\n<pre>{html.escape(result)}</pre>"
+        if len(error_msg) > 4000:
+            error_msg = error_msg[:3900] + "... (Truncated)"
+        bot.send_message(call.message.chat.id, error_msg, parse_mode='HTML')
 
 @bot.message_handler(commands=['admincmd', 'adminhelp'])
 def admin_help_command(message):

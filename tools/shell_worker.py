@@ -143,7 +143,14 @@ def rebuild_container(user_id, codebase_id, port=None):
     
     try:
         print(f"Rebuilding image {image_tag}...")
-        client.images.build(path=user_storage, tag=image_tag, rm=True)
+        try:
+            client.images.build(path=user_storage, tag=image_tag, rm=True)
+        except docker.errors.BuildError as be:
+            log_error = ""
+            for line in be.build_log:
+                if 'stream' in line:
+                    log_error += line['stream']
+            return False, f"Build Error:\n{log_error}"
         
         try:
             old_container = client.containers.get(container_name)
@@ -158,14 +165,18 @@ def rebuild_container(user_id, codebase_id, port=None):
         internal_port = port if port else 8000
         ports_config = { f'{internal_port}/tcp': port } if port else None
         
-        container = client.containers.run(
-            image_tag,
-            detach=True,
-            name=container_name,
-            mem_limit=f"{config.FREE_TIER_RAM}m",
-            ports=ports_config,
-            restart_policy={"Name": "always"}
-        )
+        try:
+            container = client.containers.run(
+                image_tag,
+                detach=True,
+                name=container_name,
+                mem_limit=f"{config.FREE_TIER_RAM}m",
+                ports=ports_config,
+                restart_policy={"Name": "always"}
+            )
+        except Exception as ce:
+            return False, f"Runtime Error: {str(ce)}"
+
         return True, container.id
     except Exception as e:
         return False, str(e)

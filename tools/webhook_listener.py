@@ -129,7 +129,15 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
                 import configuration as config
                 try:
                     bot = telebot.TeleBot(config.BOT_TOKEN, parse_mode='HTML')
-                    bot.send_message(user_id, f"🔄 <b>Auto-Redeploy Complete!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYour project <code>{codebase_id}</code> was successfully updated via GitHub Webhook. 🚀")
+                    notification = (
+                        f"🔄 <b>Auto-Redeploy Complete!</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📂 <b>Project:</b> <code>{proj_name or codebase_id}</code>\n"
+                        f"📝 <b>Changes:</b> <i>{commit_msg}</i>\n"
+                        f"👤 <b>Author:</b> {commit_author}\n\n"
+                        f"Your application was successfully updated via GitHub Webhook. 🚀"
+                    )
+                    bot.send_message(user_id, notification)
                 except Exception as e:
                     print(f"Failed to send webhook notification: {e}")
         
