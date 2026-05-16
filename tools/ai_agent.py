@@ -124,68 +124,35 @@ def extract_imports(code_contents):
     return {"python": list(python_imports), "js": list(js_imports)}
 
 def call_ai(prompt, tools, tool_choice="required"):
-    # --- PROVIDER 1: GEMINI (Primary) ---
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {config.AI_API_KEY}"}
     payload = {
         "model": config.AI_MODEL,
         "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": "Analyze the codebase."}],
         "tools": tools, "tool_choice": tool_choice
     }
+    
     try:
-        import time
         response = requests.post(config.AI_API_URL, headers=headers, json=payload, timeout=60)
-        if response.status_code == 429:
-            print("Gemini Rate Limited. Retrying once...")
-            time.sleep(5)
-            response = requests.post(config.AI_API_URL, headers=headers, json=payload, timeout=60)
         if response.status_code == 200:
-            return response.json()['choices'][0]['message'].get('tool_calls')
-    except Exception: pass
-
-    # --- PROVIDER 2: GITHUB (Fallback) ---
-    print("Gemini Failed. Trying GITHUB...")
-    gh_headers = {"Authorization": f"Bearer {config.GITHUB_PAT}", "Content-Type": "application/json"}
-    gh_payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": "Analyze."}],
-        "tools": tools, "tool_choice": tool_choice
-    }
-    try:
-        gh_resp = requests.post("https://models.github.ai/inference/chat/completions", headers=gh_headers, json=gh_payload, timeout=60)
-        if gh_resp.status_code == 200:
-            return gh_resp.json()['choices'][0]['message'].get('tool_calls')
-    except Exception: pass
-
-    # --- PROVIDER 3: SHADOW (Unlimited) ---
-    print("GitHub Failed. Trying SHADOW...")
-    try:
-        from tools.shadow_brain import brain as shadow_brain
-        shadow_prompt = f"{prompt}\n\nRespond ONLY with raw JSON."
-        shadow_resp = shadow_brain.ask(shadow_prompt)
-        if shadow_resp and "Error:" not in shadow_resp:
-            json_match = re.search(r'\{.*\}', shadow_resp, re.DOTALL)
-            if json_match:
-                args = json.loads(json_match.group())
-                name = "discovery_success" if "Agent 1" in prompt else "audit_verified" if "Agent 2" in prompt else "finalize_deployment"
-                return [{"function": {"name": name, "arguments": json.dumps(args)}}]
-    except Exception: pass
-
-    # --- PROVIDER 4: HUGGING FACE (Final) ---
-    print("Shadow Failed. Trying HUGGING FACE...")
-    try:
-        from tools.hugging_brain import brain as hf_brain
-        hf_prompt = f"{prompt}\n\nRespond ONLY with raw JSON."
-        hf_resp = hf_brain.ask(hf_prompt)
-        if hf_resp and "Error:" not in hf_resp:
-            json_match = re.search(r'\{.*\}', hf_resp, re.DOTALL)
-            if json_match:
-                args = json.loads(json_match.group())
-                name = "discovery_success" if "Agent 1" in prompt else "audit_verified" if "Agent 2" in prompt else "finalize_deployment"
-                return [{"function": {"name": name, "arguments": json.dumps(args)}}]
-    except Exception: pass
-
-    print("❌ ALL PROVIDERS FAILED.")
-    return None
+            res_json = response.json()
+            tool_calls = res_json['choices'][0]['message'].get('tool_calls')
+            
+            # Self-Healing JSON Extraction
+            if not tool_calls:
+                content = res_json['choices'][0]['message'].get('content', '')
+                if content:
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if json_match:
+                        try:
+                            args = json.loads(json_match.group())
+                            name = "discovery_success" if "Agent 1" in prompt else "audit_verified" if "Agent 2" in prompt else "finalize_deployment"
+                            return [{"function": {"name": name, "arguments": json.dumps(args)}}]
+                        except: pass
+            return tool_calls
+        return None
+    except Exception as e:
+        print(f"AI Call failed: {e}")
+        return None
 
 def orchestrate_deployment(user_id, file_path_list, code_contents, existing_entry_point=None):
     # Extract imports to assist AI
