@@ -2,12 +2,49 @@ import json
 import os
 import threading
 from datetime import datetime, timedelta
+from cryptography.fernet import Fernet
 
-db_lock = threading.Lock()
+db_lock = threading.RLock()
 
 DB_FILE = os.path.join(os.path.dirname(__file__), '..', 'database.json')
-
 SUSPICIOUS_FILE = os.path.join(os.path.dirname(__file__), '..', 'utils', 'suspicious_user.json')
+
+_fernet_client = None
+
+def get_fernet():
+    global _fernet_client
+    if _fernet_client is None:
+        key = os.getenv("DB_ENCRYPTION_KEY")
+        if not key:
+            try:
+                key = Fernet.generate_key().decode()
+                env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+                with open(env_path, 'a') as f:
+                    f.write(f"\nDB_ENCRYPTION_KEY={key}\n")
+                os.environ["DB_ENCRYPTION_KEY"] = key
+            except Exception:
+                # Fallback static key (must be 32 bytes base64)
+                key = "BrahMosCloudDefaultSecretKey32BytesLong="
+        _fernet_client = Fernet(key.encode() if isinstance(key, str) else key)
+    return _fernet_client
+
+def encrypt_token(token: str) -> str:
+    if not token:
+        return None
+    try:
+        f = get_fernet()
+        return f.encrypt(token.encode()).decode()
+    except Exception:
+        return token
+
+def decrypt_token(token: str) -> str:
+    if not token:
+        return None
+    try:
+        f = get_fernet()
+        return f.decrypt(token.encode()).decode()
+    except Exception:
+        return token
 
 def load_suspicious():
     with db_lock:
@@ -26,29 +63,49 @@ def save_suspicious(data):
             json.dump(data, f, indent=4)
 
 def flag_suspicious_user(user_id):
-    users = load_suspicious()
-    if str(user_id) not in users:
-        users.append(str(user_id))
-        save_suspicious(users)
-        return True
-    return False
+    with db_lock:
+        users = load_suspicious()
+        if str(user_id) not in users:
+            users.append(str(user_id))
+            save_suspicious(users)
+            return True
+        return False
 
 def is_user_suspicious(user_id):
-    users = load_suspicious()
-    return str(user_id) in users
+    with db_lock:
+        users = load_suspicious()
+        return str(user_id) in users
 
 def load_db():
-    if not os.path.exists(DB_FILE):
-        return {"users": {}, "containers": {}}
-    with open(DB_FILE, 'r') as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
+    with db_lock:
+        if not os.path.exists(DB_FILE):
             return {"users": {}, "containers": {}}
+        with open(DB_FILE, 'r') as f:
+            try:
+                db = json.load(f)
+            except json.JSONDecodeError:
+                db = {"users": {}, "containers": {}}
+        
+        # Decrypt tokens on load
+        if "users" in db:
+            for user_data in db["users"].values():
+                if user_data.get("github_token"):
+                    user_data["github_token"] = decrypt_token(user_data["github_token"])
+        return db
 
 def save_db(data):
-    with open(DB_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
+    with db_lock:
+        import copy
+        db_copy = copy.deepcopy(data)
+        
+        # Encrypt tokens on save
+        if "users" in db_copy:
+            for user_data in db_copy["users"].values():
+                if user_data.get("github_token"):
+                    user_data["github_token"] = encrypt_token(user_data["github_token"])
+                    
+        with open(DB_FILE, 'w') as f:
+            json.dump(db_copy, f, indent=4)
 
 def get_all_users():
     with db_lock:
@@ -63,7 +120,7 @@ def get_user(user_id):
             # Initialize default user state
             db["users"][user_id_str] = {
                 "tier": "free",
-                "premium_expiry": None, # Date string or None
+                "premium_expiry": None,
                 "active_bots": [],
                 "resource_usage": {"ram": 0, "disk": 0},
                 "github_token": None
@@ -123,7 +180,7 @@ def update_user_premium(user_id, days, tier="pro"):
         save_db(db)
         return True
 
-def add_container(user_id, container_id, codebase_id, port=None, project_name=None, entry_point_file=None):
+def add_container(user_id, container_id, codebase_id, port=None, project_name=None, entry_point_file=None, internal_port=None):
     with db_lock:
         db = load_db()
         user_id_str = str(user_id)
@@ -145,7 +202,8 @@ def add_container(user_id, container_id, codebase_id, port=None, project_name=No
             "project_name": project_name or f"Project-{codebase_id}",
             "status": "running",
             "port": port,
-            "entry_point_file": entry_point_file
+            "entry_point_file": entry_point_file,
+            "internal_port": internal_port
         }
         save_db(db)
 
@@ -159,61 +217,66 @@ def update_project_name(container_id, new_name):
         return False
 
 def get_next_available_port():
-    db = load_db()
-    assigned_ports = [c.get("port") for c in db["containers"].values() if c.get("port")]
-    
-    # Start range from 10000
-    current_port = 10000
-    while current_port in assigned_ports:
-        current_port += 1
-    
-    return current_port
+    with db_lock:
+        db = load_db()
+        assigned_ports = [c.get("port") for c in db["containers"].values() if c.get("port")]
+        
+        # Start range from 10000
+        current_port = 10000
+        while current_port in assigned_ports:
+            current_port += 1
+        
+        return current_port
 
 def get_user_projects(user_id):
-    db = load_db()
-    user_id_str = str(user_id)
-    projects = []
-    if user_id_str in db["users"]:
-        for cont_id in db["users"][user_id_str]["active_bots"]:
-            if cont_id in db["containers"]:
-                proj = db["containers"][cont_id]
-                proj["container_id"] = cont_id
-                projects.append(proj)
-    return projects
+    with db_lock:
+        db = load_db()
+        user_id_str = str(user_id)
+        projects = []
+        if user_id_str in db["users"]:
+            for cont_id in db["users"][user_id_str]["active_bots"]:
+                if cont_id in db["containers"]:
+                    proj = db["containers"][cont_id]
+                    proj["container_id"] = cont_id
+                    projects.append(proj)
+        return projects
 
 def get_container_info(container_id):
-    db = load_db()
-    return db["containers"].get(container_id)
+    with db_lock:
+        db = load_db()
+        return db["containers"].get(container_id)
 
 def get_container_by_codebase(user_id, codebase_id):
-    db = load_db()
-    user_id_str = str(user_id)
-    if user_id_str in db["users"]:
-        for cont_id in db["users"][user_id_str]["active_bots"]:
-            if cont_id in db["containers"]:
-                if db["containers"][cont_id]["codebase_id"] == codebase_id:
-                    # Return info plus the actual container_id
-                    info = db["containers"][cont_id]
-                    info["container_id"] = cont_id
-                    return info
-    return None
+    with db_lock:
+        db = load_db()
+        user_id_str = str(user_id)
+        if user_id_str in db["users"]:
+            for cont_id in db["users"][user_id_str]["active_bots"]:
+                if cont_id in db["containers"]:
+                    if db["containers"][cont_id]["codebase_id"] == codebase_id:
+                        info = db["containers"][cont_id]
+                        info["container_id"] = cont_id
+                        return info
+        return None
 
 def update_container_status(container_id, status):
-    db = load_db()
-    if container_id in db["containers"]:
-        db["containers"][container_id]["status"] = status
-        save_db(db)
-        return True
-    return False
+    with db_lock:
+        db = load_db()
+        if container_id in db["containers"]:
+            db["containers"][container_id]["status"] = status
+            save_db(db)
+            return True
+        return False
 
 def remove_container(container_id):
-    db = load_db()
-    if container_id in db["containers"]:
-        user_id = str(db["containers"][container_id]["user_id"])
-        if user_id in db["users"]:
-            if container_id in db["users"][user_id]["active_bots"]:
-                db["users"][user_id]["active_bots"].remove(container_id)
-        del db["containers"][container_id]
-        save_db(db)
-        return True
-    return False
+    with db_lock:
+        db = load_db()
+        if container_id in db["containers"]:
+            user_id = str(db["containers"][container_id]["user_id"])
+            if user_id in db["users"]:
+                if container_id in db["users"][user_id]["active_bots"]:
+                    db["users"][user_id]["active_bots"].remove(container_id)
+            del db["containers"][container_id]
+            save_db(db)
+            return True
+        return False

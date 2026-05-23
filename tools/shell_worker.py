@@ -44,7 +44,7 @@ CMD ["./start.sh"]
 
 STORAGE_BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage'))
 
-def deploy_project(user_id, directory, codebase_id, port=None):
+def deploy_project(user_id, directory, codebase_id, port=None, internal_port=8000):
     # 1. Prepare persistent storage
     user_storage = os.path.join(STORAGE_BASE, str(user_id), codebase_id)
     os.makedirs(user_storage, exist_ok=True)
@@ -86,9 +86,12 @@ def deploy_project(user_id, directory, codebase_id, port=None):
         print(f"Starting container {container_name} with port mapping...")
         
         # Setup port mapping if provided
-        # Use the port identified by AI
-        internal_port = port if port else 8000
-        ports_config = { f'{internal_port}/tcp': port } if port else None
+        try:
+            int_port_val = int(internal_port) if internal_port else 8000
+        except ValueError:
+            int_port_val = 8000
+            
+        ports_config = { f'{int_port_val}/tcp': port } if port else None
         
         container = client.containers.run(
             image_tag,
@@ -96,6 +99,7 @@ def deploy_project(user_id, directory, codebase_id, port=None):
             name=container_name,
             mem_limit=f"{config.FREE_TIER_RAM}m",
             ports=ports_config,
+            environment={"PORT": str(int_port_val)},
             restart_policy={"Name": "always"}
         )
         
@@ -133,7 +137,7 @@ def remove_container_physical(container_id):
     except Exception:
         return False
 
-def rebuild_container(user_id, codebase_id, port=None):
+def rebuild_container(user_id, codebase_id, port=None, internal_port=8000):
     user_storage = os.path.join(STORAGE_BASE, str(user_id), codebase_id)
     if not os.path.exists(user_storage):
         return False, "Project storage not found"
@@ -164,8 +168,12 @@ def rebuild_container(user_id, codebase_id, port=None):
         print(f"Starting container {container_name} with port {port}...")
         
         # Setup port mapping if provided
-        internal_port = port if port else 8000
-        ports_config = { f'{internal_port}/tcp': port } if port else None
+        try:
+            int_port_val = int(internal_port) if internal_port else 8000
+        except ValueError:
+            int_port_val = 8000
+            
+        ports_config = { f'{int_port_val}/tcp': port } if port else None
         
         try:
             container = client.containers.run(
@@ -174,11 +182,12 @@ def rebuild_container(user_id, codebase_id, port=None):
                 name=container_name,
                 mem_limit=f"{config.FREE_TIER_RAM}m",
                 ports=ports_config,
+                environment={"PORT": str(int_port_val)},
                 restart_policy={"Name": "always"}
             )
         except Exception as ce:
             return False, f"Runtime Error: {str(ce)}"
-
+ 
         return True, container.id
     except Exception as e:
         return False, str(e)

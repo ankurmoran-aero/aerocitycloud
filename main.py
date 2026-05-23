@@ -171,10 +171,10 @@ def process_deployment(message, repo_url=None, zip_path=None, custom_pat=None, p
         assigned_port = state_manager.get_next_available_port() if is_web else None
         
         bot.edit_message_text(f"🐳 <b>Deploying {proj_type.upper()} via Docker...</b>", message.chat.id, status_msg.message_id)
-        dep_success, container_id = shell_worker.deploy_project(user_id, temp_dir, codebase_id, port=assigned_port)
+        dep_success, container_id = shell_worker.deploy_project(user_id, temp_dir, codebase_id, port=assigned_port, internal_port=ai_port)
         
         if dep_success:
-            state_manager.add_container(user_id, container_id, codebase_id, port=assigned_port, project_name=project_name, entry_point_file=deployment_data.get("entry_point_file"))
+            state_manager.add_container(user_id, container_id, codebase_id, port=assigned_port, project_name=project_name, entry_point_file=deployment_data.get("entry_point_file"), internal_port=ai_port)
             
             # Post-deployment check
             import time
@@ -863,9 +863,39 @@ If you want to manage or host your files, you can use the bot given below. It ta
         markup.row(types.InlineKeyboardButton("🔑 Connect GitHub for Private Repos", callback_data="update_github_token"))
         
     github_token = user_state.get("github_token", "")
-    push_bot_url = f"https://t.me/brahmospushbot?start=auth_{user_id}"
     if github_token:
-        push_bot_url += f"_{github_token}"
+        import uuid
+        import json
+        from datetime import datetime, timedelta
+        session_token = str(uuid.uuid4())
+        shared_sessions_path = '/home/ankur/shared_auth_sessions.json'
+        
+        # Read existing sessions
+        sessions = {}
+        if os.path.exists(shared_sessions_path):
+            try:
+                with open(shared_sessions_path, 'r') as f:
+                    sessions = json.load(f)
+            except Exception:
+                pass
+                
+        # Add new session
+        sessions[f"auth_{session_token}"] = {
+            "user_id": user_id,
+            "github_token": github_token,
+            "expiry": (datetime.now() + timedelta(minutes=5)).isoformat()
+        }
+        
+        # Write back
+        try:
+            with open(shared_sessions_path, 'w') as f:
+                json.dump(sessions, f, indent=4)
+        except Exception:
+            pass
+            
+        push_bot_url = f"https://t.me/brahmospushbot?start=auth_{session_token}"
+    else:
+        push_bot_url = f"https://t.me/brahmospushbot?start=auth_{user_id}"
         
     markup.row(types.InlineKeyboardButton("📂 Manage Files (GitPushBot)", url=push_bot_url))
     markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))

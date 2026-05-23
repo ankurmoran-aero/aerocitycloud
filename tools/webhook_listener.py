@@ -29,6 +29,15 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
 
     payload = await request.json()
     
+    # Extract commit metadata
+    commits = payload.get("commits", [])
+    if commits:
+        commit_msg = commits[0].get("message", "No commit message")
+        commit_author = commits[0].get("author", {}).get("name", "Unknown")
+    else:
+        commit_msg = "Unknown changes"
+        commit_author = "Unknown"
+    
     # Check if it's a push event
     if payload.get("ref") in ["refs/heads/main", "refs/heads/master"]:
         print(f"CI/CD: Push detected for {user_id}/{codebase_id}. Redeploying...")
@@ -102,14 +111,16 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
             assigned_port = None
             proj_name = None
             existing_entry = None
+            internal_port = 8000
             for cont_id, data in db["containers"].items():
                 if data["codebase_id"] == codebase_id:
                     assigned_port = data.get("port")
                     proj_name = data.get("project_name")
                     existing_entry = data.get("entry_point_file")
+                    internal_port = data.get("internal_port", 8000)
                     break
             
-            success, new_container_id = shell_worker.rebuild_container(user_id, codebase_id, port=assigned_port)
+            success, new_container_id = shell_worker.rebuild_container(user_id, codebase_id, port=assigned_port, internal_port=internal_port)
             if success:
                 # Update state manager
                 for cont_id, data in list(db["containers"].items()):
@@ -122,7 +133,8 @@ async def github_webhook(user_id: str, codebase_id: str, request: Request):
                     codebase_id, 
                     port=assigned_port, 
                     project_name=proj_name, 
-                    entry_point_file=existing_entry
+                    entry_point_file=existing_entry,
+                    internal_port=internal_port
                 )
                 
                 # Notify user
