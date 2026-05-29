@@ -11,7 +11,7 @@ def monitor_resources():
         try:
             containers = client.containers.list()
             for container in containers:
-                if not container.name.startswith("brahmos_cont_"):
+                if not container.name.startswith("aerocity_cont_"):
                     continue
                 
                 # Get stats
@@ -29,7 +29,7 @@ def monitor_resources():
                     disk_usage = 0
 
                 # Find owner and tier
-                # Name format: brahmos_cont_{user_id}_{codebase_id}
+                # Name format: aerocity_cont_{user_id}_{codebase_id}
                 parts = container.name.split("_")
                 if len(parts) >= 4:
                     user_id = parts[2]

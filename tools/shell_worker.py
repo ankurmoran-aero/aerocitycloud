@@ -26,17 +26,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
-RUN groupadd -r brahmos && useradd -r -g brahmos brahmos
+RUN groupadd -r aerocity && useradd -r -g aerocity aerocity
 WORKDIR /app
 COPY . .
-RUN chown -R brahmos:brahmos /app
+RUN chown -R aerocity:aerocity /app
 
 # Install dependencies based on project type
 RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
 RUN if [ -f package.json ]; then npm install; fi
 
 RUN chmod +x start.sh
-USER brahmos
+USER aerocity
 CMD ["./start.sh"]
 """
     with open(os.path.join(directory, 'Dockerfile'), 'w') as f:
@@ -60,8 +60,8 @@ def deploy_project(user_id, directory, codebase_id, port=None, internal_port=800
 
     create_dockerfile(user_storage)
     
-    image_tag = f"brahmos_{user_id}_{codebase_id}".lower()
-    container_name = f"brahmos_cont_{user_id}_{codebase_id}".lower()
+    image_tag = f"aerocity_{user_id}_{codebase_id}".lower()
+    container_name = f"aerocity_cont_{user_id}_{codebase_id}".lower()
     
     try:
         # Build Image using the storage directory
@@ -144,8 +144,8 @@ def rebuild_container(user_id, codebase_id, port=None, internal_port=8000):
         
     create_dockerfile(user_storage)
     
-    image_tag = f"brahmos_{user_id}_{codebase_id}".lower()
-    container_name = f"brahmos_cont_{user_id}_{codebase_id}".lower()
+    image_tag = f"aerocity_{user_id}_{codebase_id}".lower()
+    container_name = f"aerocity_cont_{user_id}_{codebase_id}".lower()
     
     try:
         print(f"Rebuilding image {image_tag}...")

@@ -1,10 +1,10 @@
-# ☁️ BrahMos Cloud — The AI-Native PaaS Built on a Mobile Phone
+# ☁️ Aerocity Cloud — The AI-Native PaaS Built on a Mobile Phone
 
 [![Platform](https://img.shields.io/badge/Platform-Mobile%20Android--Termux-orange?style=for-the-badge&logo=android)](https://github.com/ankurmoran96-openai)
 [![Orchestrator](https://img.shields.io/badge/Orchestrator-Multi--Agent%20LLM-blue?style=for-the-badge)](https://github.com/ankurmoran96-openai)
 [![Engine](https://img.shields.io/badge/Engine-Docker%20SDK-lightblue?style=for-the-badge&logo=docker)](https://github.com/ankurmoran96-openai)
 
-BrahMos Cloud is a high-performance, AI-native **Platform as a Service (PaaS)** that automates the deployment of Telegram bots, web APIs, and web applications. It uses advanced LLM orchestration to analyze repository files, generate configuration setups, compile custom container builds, and perform malware security checks dynamically before execution.
+Aerocity Cloud is a high-performance, AI-native **Platform as a Service (PaaS)** that automates the deployment of Telegram bots, web APIs, and web applications. It uses advanced LLM orchestration to analyze repository files, generate configuration setups, compile custom container builds, and perform malware security checks dynamically before execution.
 
 ---
 
@@ -18,7 +18,7 @@ Using **Termux** as a mobile Linux terminal, **vim** for code edits, and remote 
 
 ## 🏗️ Core Architecture & Agent Flow
 
-When a developer submits a GitHub repository URL or uploads a project ZIP, BrahMos Cloud executes a multi-stage **agentic pipeline**:
+When a developer submits a GitHub repository URL or uploads a project ZIP, Aerocity Cloud executes a multi-stage **agentic pipeline**:
 
 ```mermaid
 graph TD
@@ -57,7 +57,7 @@ graph TD
 
 ## ⚠️ Potential Bugs & Caveats (Development Mode)
 
-BrahMos Cloud is currently in active development. As a consequence of building on a single host node and running high-frequency deployments, developers should be aware of the following issues:
+Aerocity Cloud is currently in active development. As a consequence of building on a single host node and running high-frequency deployments, developers should be aware of the following issues:
 
 1. **Host Resource Spikes (Build Bottleneck)**:
    - *Issue*: Running multiple concurrent Docker image builds and LLM compilation calls on a single Host VPS causes CPU and RAM spikes.
@@ -90,8 +90,8 @@ BrahMos Cloud is currently in active development. As a consequence of building o
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ankurmoran96-openai/brahmoscloud.git
-   cd brahmoscloud
+   git clone https://github.com/ankurmoran96-openai/aerocitycloud.git
+   cd aerocitycloud
    ```
 2. Install dependencies:
    ```bash
@@ -111,4 +111,4 @@ BrahMos Cloud is currently in active development. As a consequence of building o
 
 ## 📜 License
 MIT License. Built with vision and relentless first-principles coding by **Ankur Moran**.
-[Telegram Developer Link](https://t.me/ankurslys) | [Official Channel](https://t.me/brahmosai)
+[Telegram Developer Link](https://t.me/ankurslys) | [Official Channel](https://t.me/aerocityai)

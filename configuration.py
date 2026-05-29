@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 """
-BRAHMOS CLOUD - CONFIGURATION
+AEROCITY CLOUD - CONFIGURATION
 --------------------------------
 NOTE: This file is open-source. For security, no variables are hardcoded here.
 Users MUST create a '.env' file in the root directory and set the variables below.
@@ -15,7 +15,7 @@ Read the README.md for the full list of required environment keys.
 # --- Telegram Settings ---
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@BrahMosAI")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@AerocityAI")
 
 # --- AI Settings ---
 AI_API_URL = os.getenv("AI_API_URL", "https://api.gptnix.online/v1/chat/completions")
@@ -27,11 +27,11 @@ GITHUB_PAT = os.getenv("GITHUB_PAT", "")
 
 # --- VPS Access ---
 VPS_LOGIN = os.getenv("VPS_LOGIN", "admin_root")
-BASE_DOMAIN = os.getenv("BASE_DOMAIN", "brahmos.cloud") # Base domain for web apps
+BASE_DOMAIN = os.getenv("BASE_DOMAIN", "aerocity.cloud") # Base domain for web apps
 
 # --- Community & Support ---
 DEV_LINK = os.getenv("DEV_LINK", "https://t.me/ankurslys")
-COMMUNITY_LINK = os.getenv("COMMUNITY_LINK", "https://t.me/brahmosai")
+COMMUNITY_LINK = os.getenv("COMMUNITY_LINK", "https://t.me/aerocityai")
 
 # --- Resource Limits (Free Tier) ---
 FREE_TIER_RAM = int(os.getenv("FREE_TIER_RAM", "100"))
@@ -49,7 +49,7 @@ MAX_TIER_DISK = int(os.getenv("MAX_TIER_DISK", "10240"))
 # NOTE: To maintain open-source neutrality, the default system prompt is removed.
 # Users MUST define their own 'SYSTEM_PROMPT' in the .env file.
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", """
-You are the BrahMos Cloud AI Orchestrator. 
+You are the Aerocity Cloud AI Orchestrator. 
 Your task is to analyze codebases and determine their type (Bot, Web App, or API).
 
 AGENTIC WORKFLOW:

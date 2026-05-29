@@ -24,7 +24,7 @@ def get_fernet():
                 os.environ["DB_ENCRYPTION_KEY"] = key
             except Exception:
                 # Fallback static key (must be 32 bytes base64)
-                key = "BrahMosCloudDefaultSecretKey32BytesLong="
+                key = "AerocityCloudDefaultSecretKey32BytesLong="
         _fernet_client = Fernet(key.encode() if isinstance(key, str) else key)
     return _fernet_client
 

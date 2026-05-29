@@ -221,7 +221,7 @@ def start_command(message, edit=False):
     if not check_membership(user_id):
         text = f"""<b>🛑 Access Restricted</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-Welcome! To utilize the powerful features of <b>BrahMos Cloud</b>, you must first become a verified member of our community.
+Welcome! To utilize the powerful features of <b>Aerocity Cloud</b>, you must first become a verified member of our community.
 
 <b>Required Steps:</b>
 1️⃣ Join our official channel.
@@ -230,11 +230,11 @@ Welcome! To utilize the powerful features of <b>BrahMos Cloud</b>, you must firs
 <i>This ensures a secure and dedicated environment for all our users.</i>"""
         return smart_respond(message, text, markup=get_join_keyboard(), edit=edit)
 
-    text = f"""🚀 <b>BrahMos Cloud: The Intelligent PaaS</b>
+    text = f"""🚀 <b>Aerocity Cloud: The Intelligent PaaS</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 Welcome to the future of cloud hosting, <b>{first_name}</b>! 👋
 
-<b>BrahMos Cloud</b> is a high-performance Platform as a Service designed to help you launch bots, websites, and APIs in seconds. Powered by advanced AI security, we ensure your code is safe and always online.
+<b>Aerocity Cloud</b> is a high-performance Platform as a Service designed to help you launch bots, websites, and APIs in seconds. Powered by advanced AI security, we ensure your code is safe and always online.
 
 ⚡ <b>Infrastructure Status:</b>
 • <b>Core System:</b> <code>Operational 🟢</code>
@@ -330,31 +330,25 @@ def rem_premium_admin(message):
     else:
         smart_respond(message, "❌ Failed to remove premium.")
 
-@bot.message_handler(commands=['listusers'])
-def list_users_admin(message):
-    # Check ID from from_user (for command) or from call (for callback)
-    user_id = message.from_user.id if message.from_user else None
-    if user_id != config.ADMIN_ID and not hasattr(message, 'admin_authorized'):
-        return
-
+def _send_user_list(chat_id):
+    """Core logic: build & send the user audit list to the given chat_id."""
     users = state_manager.get_all_users()
     if not users:
-        return smart_respond(message, "📂 <b>No users found in database.</b>")
+        return bot.send_message(chat_id, "📂 <b>No users found in database.</b>", parse_mode="HTML")
 
     text = "👑 <b>Admin: User & File Audit</b>\n━━━━━━━━━━━━━━━━━━━━━━\n"
-    
-    for user_id, data in users.items():
-        text += f"👤 <b>User:</b> <code>{user_id}</code> ({data['tier'].upper()})\n"
-        projects = state_manager.get_user_projects(user_id)
-        
+
+    for uid, data in users.items():
+        text += f"👤 <b>User:</b> <code>{uid}</code> ({data['tier'].upper()})\n"
+        projects = state_manager.get_user_projects(uid)
+
         if not projects:
             text += "⤷ <i>No active projects.</i>\n"
         else:
             for proj in projects:
                 code_id = proj['codebase_id']
-                path = os.path.join(shell_worker.STORAGE_BASE, str(user_id), code_id)
-                
-                # List files in the project directory
+                path = os.path.join(shell_worker.STORAGE_BASE, str(uid), code_id)
+
                 try:
                     files = os.listdir(path)
                     file_list = ", ".join(files[:5]) + ("..." if len(files) > 5 else "")
@@ -362,15 +356,19 @@ def list_users_admin(message):
                     file_list = "Directory Error"
 
                 text += f"⤷ 📂 <code>{code_id}</code>\n  └ 📍 <code>{path}</code>\n  └ 📄 {file_list}\n"
-        
+
         text += "──────────────────\n"
 
-    # Handle long messages by splitting
-    if len(text) > 4000:
-        for x in range(0, len(text), 4000):
-            bot.send_message(message.chat.id, text[x:x+4000])
-    else:
-        smart_respond(message, text)
+    # Split messages if too long
+    for x in range(0, len(text), 4000):
+        bot.send_message(chat_id, text[x:x+4000], parse_mode="HTML")
+
+
+@bot.message_handler(commands=['listusers'])
+def list_users_admin(message):
+    if message.from_user.id != config.ADMIN_ID:
+        return
+    _send_user_list(message.chat.id)
 
 @bot.message_handler(func=lambda message: message.text and "github.com" in message.text)
 def handle_github_url(message):
@@ -407,21 +405,17 @@ def handle_document_upload(message):
 
 # --- Callbacks ---
 
-@bot.message_handler(commands=['stats'])
-def stats_command_admin(message):
-    user_id = message.from_user.id if message.from_user else None
-    if user_id != config.ADMIN_ID and not hasattr(message, 'admin_authorized'):
-        return
-    
+def _send_stats(chat_id):
+    """Core logic: build & send system stats to the given chat_id."""
     users = state_manager.get_all_users()
     total_users = len(users)
     pro_users = sum(1 for u in users.values() if u['tier'] == 'pro')
-    
+
     import docker
     client = docker.from_env()
     containers = client.containers.list()
-    active_containers = len([c for c in containers if c.name.startswith("brahmos_cont_")])
-    
+    active_containers = len([c for c in containers if c.name.startswith("aerocity_cont_")])
+
     text = f"""📊 <b>Global System Stats</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 👤 <b>Total Users:</b> {total_users}
@@ -430,7 +424,14 @@ def stats_command_admin(message):
 ⚙️ <b>Server Identity:</b> <code>{config.VPS_LOGIN}</code>
 
 <i>Monitoring system performance...</i>"""
-    smart_respond(message, text)
+    bot.send_message(chat_id, text, parse_mode="HTML")
+
+
+@bot.message_handler(commands=['stats'])
+def stats_command_admin(message):
+    if message.from_user.id != config.ADMIN_ID:
+        return
+    _send_stats(message.chat.id)
 
 @bot.message_handler(commands=['addcmd', 'admin'])
 def addcmd_admin(message):
@@ -448,14 +449,16 @@ def addcmd_admin(message):
 @bot.callback_query_handler(func=lambda call: call.data == "admin_list_users")
 def admin_list_users_callback(call):
     bot.answer_callback_query(call.id)
-    call.message.admin_authorized = True
-    list_users_admin(call.message)
+    if call.from_user.id != config.ADMIN_ID:
+        return
+    _send_user_list(call.message.chat.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_view_stats")
 def admin_view_stats_callback(call):
     bot.answer_callback_query(call.id)
-    call.message.admin_authorized = True
-    stats_command_admin(call.message)
+    if call.from_user.id != config.ADMIN_ID:
+        return
+    _send_stats(call.message.chat.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_member")
 def verify_member_callback(call):
@@ -640,7 +643,7 @@ def back_start_callback(call):
 @bot.callback_query_handler(func=lambda call: call.data == "help_menu")
 def help_menu_callback(call):
     bot.answer_callback_query(call.id)
-    help_text = """📖 <b>BrahMos Intelligence Manual</b>
+    help_text = """📖 <b>Aerocity Intelligence Manual</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 <b>How to Deploy (Automatic CI/CD):</b>
 1️⃣ <b>GitHub Repo:</b> Use <code>/deploy &lt;url&gt; [pat]</code> or just send the link.
@@ -802,7 +805,7 @@ def view_plans_callback(call):
     if is_callback:
         bot.answer_callback_query(call.id)
 
-    text = f"""💎 <b>BrahMos Cloud Premium</b>
+    text = f"""💎 <b>Aerocity Cloud Premium</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 Upgrade your hosting experience with our powerful <b>PRO</b> & <b>MAX</b> tiers.
 
@@ -840,7 +843,7 @@ def deploy_menu_callback(call):
 
     text = """🚀 <b>How to Deploy & Manage Files</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-To host your application on <b>BrahMos Cloud</b>, choose one of these methods:
+To host your application on <b>Aerocity Cloud</b>, choose one of these methods:
 
 1️⃣ <b>Public GitHub Repository:</b>
 Send the command <code>/deploy &lt;url&gt;</code> or just send the public link.
@@ -893,9 +896,9 @@ If you want to manage or host your files, you can use the bot given below. It ta
         except Exception:
             pass
             
-        push_bot_url = f"https://t.me/brahmospushbot?start=auth_{session_token}"
+        push_bot_url = f"https://t.me/aerocitypushbot?start=auth_{session_token}"
     else:
-        push_bot_url = f"https://t.me/brahmospushbot?start=auth_{user_id}"
+        push_bot_url = f"https://t.me/aerocitypushbot?start=auth_{user_id}"
         
     markup.row(types.InlineKeyboardButton("📂 Manage Files (GitPushBot)", url=push_bot_url))
     markup.row(types.InlineKeyboardButton("⬅️ Back to Home", callback_data="back_start"))
@@ -1117,7 +1120,7 @@ Master your VPS infrastructure with these commands:
 • <code>/stats</code> - View global system usage.
 • <code>/admin</code> or <code>/addcmd</code> - Open the UI Control Panel.
 
-<i>Use these tools responsibly to manage BrahMos Cloud.</i>"""
+<i>Use these tools responsibly to manage Aerocity Cloud.</i>"""
     smart_respond(message, help_text)
 
 if __name__ == "__main__":
@@ -1127,5 +1130,5 @@ if __name__ == "__main__":
     # Start Webhook Listener (Run in background)
     threading.Thread(target=webhook_listener.start_listener, daemon=True).start()
     
-    print("BrahMos Cloud Bot is starting...")
+    print("Aerocity Cloud Bot is starting...")
     bot.infinity_polling()
