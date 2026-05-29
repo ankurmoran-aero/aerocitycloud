@@ -230,24 +230,24 @@ Welcome! To utilize the powerful features of <b>Aerocity Cloud</b>, you must fir
 <i>This ensures a secure and dedicated environment for all our users.</i>"""
         return smart_respond(message, text, markup=get_join_keyboard(), edit=edit)
 
-    text = f"""🚀 <b>Aerocity Cloud: The Intelligent PaaS</b>
+    text = f"""✦ <b>Aerocity Cloud ⬡ The Apex Infrastructure</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-Welcome to the future of cloud hosting, <b>{first_name}</b>! 👋
+<b>Welcome to the nexus, {first_name}.</b> 🌌
 
-<b>Aerocity Cloud</b> is a high-performance Platform as a Service designed to help you launch bots, websites, and APIs in seconds. Powered by advanced AI security, we ensure your code is safe and always online.
+You have entered <b>Aerocity Cloud</b>—an ultra-high-performance Platform as a Service. Powered by state-of-the-art AI security protocols, we engineer absolute uptime and immaculate deployment environments.
 
-⚡ <b>Infrastructure Status:</b>
-• <b>Core System:</b> <code>Operational 🟢</code>
-• <b>AI Security:</b> <code>Shield Active 🛡️</code>
-• <b>Docker Engine:</b> <code>Ready 🐳</code>
+<b>⟡ System Telemetry:</b>
+• <b>Core Matrix:</b> <code>Synchronized 🌑</code>
+• <b>AI Firewall:</b> <code>Impenetrable 🖤</code>
+• <b>Docker Engine:</b> <code>Primed 🪐</code>
 
-📂 <b>Getting Started:</b>
-Simply send a <b>GitHub Repository URL</b> or upload a <b>ZIP file</b>. Our AI will automatically analyze your project and deploy it instantly.
+<b>⟡ Initiation:</b>
+Transmit a <b>GitHub Repository URL</b> or drop a <b>ZIP archive</b>. Our intelligence will dissect, construct, and deploy your architecture instantly.
 
-⚠️ <b>Notice:</b> <i>Users are responsible for their own backups. We are not responsible for any data loss.</i>
+⚠️ <i>Protocol Note: Sovereignty over your data is yours. Secure your own backups.</i>
 
 ━━━━━━━━━━━━━━━━━━━━━━
-<i>Manage your cloud ecosystem using the buttons below.</i>"""
+<i>Command your empire using the terminal below.</i> ⚡︎"""
     
     return smart_respond(message, text, markup=get_start_keyboard(user_id), edit=edit)
 
