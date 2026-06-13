@@ -25,6 +25,12 @@ AI_MODEL = os.getenv("AI_MODEL", "zenith/gpt-4o")
 # --- GitHub Settings ---
 GITHUB_PAT = os.getenv("GITHUB_PAT", "")
 
+# Validate GITHUB_PAT on startup
+if not GITHUB_PAT:
+    print("[WARNING] GITHUB_PAT is not set. GitHub operations will fail silently.")
+else:
+    print(f"[OK] GITHUB_PAT loaded (ending: ...{GITHUB_PAT[-8:]})")
+
 # --- VPS Access ---
 VPS_LOGIN = os.getenv("VPS_LOGIN", "admin_root")
 BASE_DOMAIN = os.getenv("BASE_DOMAIN", "aerocity.cloud") # Base domain for web apps

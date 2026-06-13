@@ -3,12 +3,30 @@ from telebot import types
 import configuration as config
 import os
 import threading
+import time
 import uuid
 import requests
 import html
 
 from tools import state_manager, file_manager, ai_agent, shell_worker, resource_watchdog, webhook_listener, garbage_collector
 from utils import subscription_manager, error_handler
+
+
+def github_api_request(url, headers, method='get', **kwargs):
+    """GitHub API request with retry on 429 rate limit."""
+    resp = None
+    for attempt in range(3):
+        if method == 'get':
+            resp = requests.get(url, headers=headers, **kwargs)
+        else:
+            resp = requests.post(url, headers=headers, **kwargs)
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get('Retry-After', 60))
+            print(f"GitHub rate limit hit. Retrying in {retry_after}s...")
+            time.sleep(retry_after)
+            continue
+        return resp
+    return resp
 
 # Initialize Bot with increased thread pool to prevent blocking during heavy deployments
 bot = telebot.TeleBot(config.BOT_TOKEN, parse_mode='HTML', num_threads=20)
@@ -918,7 +936,7 @@ def list_private_repos_callback(call):
     
     try:
         headers = {"Authorization": f"token {token}"}
-        response = requests.get("https://api.github.com/user/repos?per_page=50&sort=updated", headers=headers, timeout=10)
+        response = github_api_request("https://api.github.com/user/repos?per_page=50&sort=updated", headers=headers, timeout=10)
         response.raise_for_status()
         repos = response.json()
         
